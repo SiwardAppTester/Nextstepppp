@@ -117,13 +117,74 @@ export default function VoicePage() {
 
   async function handleResponse(userText: string) {
     setState("thinking");
-    // TODO Phase 2: POST to /api/chat with userText, stream tool calls + final text.
-    // For now: mocked Coach reply.
-    await new Promise((r) => setTimeout(r, 900));
-    const replyText = mockCoachReply(userText);
-    setReply(replyText);
-    setState("speaking");
-    speak(replyText, () => setState("idle"));
+    setReply(null);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            {
+              id: crypto.randomUUID(),
+              role: "user",
+              parts: [{ type: "text", text: userText }],
+            },
+          ],
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Coach didn't respond (HTTP ${res.status})`);
+      }
+
+      // Parse the AI SDK SSE stream — accumulate text-delta events into the
+      // final reply. Tool calls happen invisibly; voice mode speaks only the
+      // final assistant text.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+
+          try {
+            const event = JSON.parse(payload);
+            if (event.type === "text-delta" && typeof event.delta === "string") {
+              fullText += event.delta;
+              setReply(fullText); // stream-in the visible text
+            }
+          } catch {
+            // Skip malformed lines silently.
+          }
+        }
+      }
+
+      if (!fullText.trim()) {
+        setReply("(Coach replied with no text — try asking again.)");
+        setState("idle");
+        return;
+      }
+
+      setState("speaking");
+      speak(fullText, () => setState("idle"));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setPermError(msg);
+      setState("idle");
+    }
   }
 
   function speak(text: string, onDone: () => void) {
@@ -245,7 +306,7 @@ export default function VoicePage() {
 
       {/* Disclosure */}
       <div className="absolute bottom-4 left-0 right-0 text-center text-[10.5px] text-[var(--color-text-subtle)]">
-        Voice mode uses your browser&apos;s built-in speech recognition. The Coach&apos;s responses are mocked until Phase 2.
+        Speech recognition + voice runs in your browser. Coach replies stream from Claude.
       </div>
     </div>
   );
@@ -262,17 +323,3 @@ function stateLabel(state: VoiceState, supported: boolean | null, err: string | 
   }
 }
 
-// Mock Coach reply — replaced with real /api/chat call in Phase 2.
-function mockCoachReply(userText: string): string {
-  const t = userText.toLowerCase();
-  if (t.includes("what should") || t.includes("what now") || t.includes("bored")) {
-    return "It's morning, your best deep-work window. You've got 'Draft proposal for Q3 client expansion' in Business 1, priority one. Want to start there?";
-  }
-  if (t.includes("remind") || t.includes("schedule")) {
-    return "Got it. I'll add that as a reminder once Phase 2 is live and the Coach can actually call create_task.";
-  }
-  if (t.includes("gym") || t.includes("workout") || t.includes("deadlift")) {
-    return "Logged. Want me to schedule it for tomorrow morning, or just keep it open?";
-  }
-  return `Heard you. You said: "${userText}". This is a mocked reply — the real Coach lands in Phase 2.`;
-}
