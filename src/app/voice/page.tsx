@@ -42,7 +42,15 @@ export default function VoicePage() {
       // Lazy-load VAD — it's heavy and browser-only.
       const { MicVAD, utils } = await import("@ricky0123/vad-web");
 
+      // Next.js doesn't bundle onnxruntime-web's .mjs/.wasm files into _next/static
+      // by default, so we have to tell ORT and the VAD library where to fetch them
+      // from. Pinned jsdelivr URLs match the versions installed.
+      const ORT_BASE = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.25.1/dist/";
+      const VAD_BASE = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/dist/";
+
       const vad = await MicVAD.new({
+        onnxWASMBasePath: ORT_BASE,
+        baseAssetPath: VAD_BASE,
         // v5 model is more accurate; legacy is the default but slightly less crisp.
         model: "v5",
         // Don't auto-trigger onSpeechEnd while VAD is paused (e.g. while Coach speaks).
