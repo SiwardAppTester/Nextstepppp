@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Mail, ArrowRight, Lock, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,17 @@ const URL_ERROR_MESSAGES: Record<string, string> = {
   not_authorized: "This email isn't authorized to sign in.",
 };
 
+// useSearchParams forces a Suspense boundary in production builds — Next.js bails
+// out of static prerendering when it sees the hook. Outer wrapper provides the boundary.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const params = useSearchParams();
   const urlError = params.get("error");
   const [email, setEmail] = useState("");
