@@ -330,6 +330,25 @@ body {
 [data-sidebar="collapsed"] .sidebar-icon-collapse { display: none; }
 [data-sidebar="collapsed"] .sidebar-icon-expand   { display: inline-flex; }
 
+/* Mobile: force the sidebar collapsed below 768px regardless of preference.
+   The user keeps a 56px icon-rail; the toggle button is hidden because there's
+   no room for a wide sidebar on a phone anyway. Same rules as data-sidebar="collapsed". */
+@media (max-width: 768px) {
+  .app-sidebar {
+    width: 56px;
+  }
+  .sidebar-only-expanded { display: none !important; }
+  .sidebar-only-collapsed { display: flex; }
+  .sidebar-nav-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .sidebar-nav-item .sidebar-active-rail {
+    display: none;
+  }
+}
+
 /* =========================================================================
    VOICE MODE — full-screen "talk to the Coach" surface, /voice
    Driven by data-voice-state on the page wrapper.

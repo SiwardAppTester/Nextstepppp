@@ -14,6 +14,7 @@ import {
   Rocket,
   Dumbbell,
   Pencil,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { Topbar } from "@/components/topbar";
@@ -23,7 +24,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import type { Category } from "@/lib/types";
-import { updateCategoryContext, sendTestReminder } from "./actions";
+import { updateCategoryContext, sendTestReminder, updateMemory, deleteMemory } from "./actions";
+
+export type Memory = {
+  id: string;
+  content: string;
+  importance: number;
+  category_id: string | null;
+  created_at: string;
+};
 
 const iconMap: Record<string, LucideIcon> = {
   User: UserIcon,
@@ -35,9 +44,11 @@ const iconMap: Record<string, LucideIcon> = {
 
 export function SettingsView({
   categories,
+  memories,
   userEmail,
 }: {
   categories: Category[];
+  memories: Memory[];
   userEmail: string;
 }) {
   return (
@@ -54,7 +65,7 @@ export function SettingsView({
               </div>
               <CardDescription>How the Coach addresses you and where it sends notifications.</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Name" value="Sief" />
               <Field label="Timezone" value="Europe/Amsterdam" />
               <Field label="Owner email" value={userEmail} hint="Only this email can sign in." />
@@ -94,23 +105,8 @@ export function SettingsView({
           <NotificationsCard />
 
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Brain className="h-3.5 w-3.5 text-[var(--color-accent)]" />
-                <CardTitle>Memory</CardTitle>
-              </div>
-              <CardDescription>What the Coach has learned about you. Edit or delete anything.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-[10px] border border-dashed border-[var(--color-border)] bg-[var(--color-surface-2)] p-6 text-center">
-                <div className="text-[13px] text-[var(--color-text-muted)] mb-1">No memories yet.</div>
-                <div className="text-[11.5px] text-[var(--color-text-subtle)]">
-                  The Coach will save these automatically once you start chatting (Phase 2).
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MemoryBrowser memories={memories} />
+
 
           <Card>
             <CardHeader>
@@ -243,6 +239,157 @@ function ToggleRow({
       >
         <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-[var(--color-text-subtle)]" />
       </button>
+    </div>
+  );
+}
+
+function MemoryBrowser({ memories }: { memories: Memory[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Brain className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+              <CardTitle>Memory</CardTitle>
+            </div>
+            <CardDescription className="mt-1">
+              What the Coach has saved about you. Edit content, change importance, or delete anything that's wrong.
+            </CardDescription>
+          </div>
+          <Badge tone="neutral">{memories.length}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {memories.length === 0 && (
+          <div className="rounded-[10px] border border-dashed border-[var(--color-border)] bg-[var(--color-surface-2)] p-6 text-center">
+            <div className="text-[13px] text-[var(--color-text-muted)] mb-1">No memories yet.</div>
+            <div className="text-[11.5px] text-[var(--color-text-subtle)]">
+              The Coach saves these automatically when you share preferences or patterns about yourself.
+            </div>
+          </div>
+        )}
+        {memories.map((m) => (
+          <MemoryRow key={m.id} memory={m} />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MemoryRow({ memory }: { memory: Memory }) {
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState(memory.content);
+  const [importance, setImportance] = useState(memory.importance);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function save() {
+    setError(null);
+    startTransition(async () => {
+      const r = await updateMemory(memory.id, content, importance);
+      if (r?.error) {
+        setError(r.error);
+        return;
+      }
+      setEditing(false);
+    });
+  }
+
+  function remove() {
+    if (!confirm("Delete this memory? The Coach won't recall it any more.")) return;
+    startTransition(async () => {
+      const r = await deleteMemory(memory.id);
+      if (r?.error) setError(r.error);
+    });
+  }
+
+  const importanceLabels: Record<number, { label: string; tone: "danger" | "warning" | "neutral" | "success" | "accent" }> = {
+    5: { label: "Critical", tone: "danger" },
+    4: { label: "High", tone: "warning" },
+    3: { label: "Useful", tone: "neutral" },
+    2: { label: "Low", tone: "neutral" },
+    1: { label: "Trivia", tone: "neutral" },
+  };
+
+  return (
+    <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] hover:border-[var(--color-border-strong)] transition-colors">
+      <div className="px-3 py-2.5">
+        {editing ? (
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={3}
+            autoFocus
+          />
+        ) : (
+          <div className="text-[13px] leading-snug text-[var(--color-text)]">
+            {memory.content}
+          </div>
+        )}
+
+        <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            {editing ? (
+              <select
+                value={importance}
+                onChange={(e) => setImportance(Number(e.target.value))}
+                className="h-7 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 text-[11.5px] focus:outline-none focus:border-[var(--color-border-accent)]"
+              >
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <option key={n} value={n}>
+                    P{n} · {importanceLabels[n].label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Badge tone={importanceLabels[memory.importance]?.tone ?? "neutral"}>
+                P{memory.importance} · {importanceLabels[memory.importance]?.label ?? "—"}
+              </Badge>
+            )}
+            <span className="text-[10.5px] text-[var(--color-text-subtle)]">
+              {new Date(memory.created_at).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {editing ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setContent(memory.content);
+                    setImportance(memory.importance);
+                    setEditing(false);
+                    setError(null);
+                  }}
+                  disabled={pending}
+                >
+                  Cancel
+                </Button>
+                <Button size="sm" variant="primary" onClick={save} disabled={pending}>
+                  {pending ? "Saving…" : "Save"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+                  Edit
+                </Button>
+                <Button size="sm" variant="ghost" onClick={remove} disabled={pending}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        {error && <div className="mt-2 text-[12px] text-[var(--color-danger)]">{error}</div>}
+      </div>
     </div>
   );
 }

@@ -26,6 +26,27 @@ export async function updateCategoryContext(id: string, context: string) {
   return { ok: true };
 }
 
+export async function updateMemory(id: string, content: string, importance: number) {
+  const { supabase } = await requireUser();
+  if (!content.trim()) return { ok: false, error: "Content can't be empty" };
+  const safeImp = Math.min(5, Math.max(1, Math.round(importance)));
+  const { error } = await supabase
+    .from("memory")
+    .update({ content: content.trim(), importance: safeImp })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function deleteMemory(id: string) {
+  const { supabase } = await requireUser();
+  const { error } = await supabase.from("memory").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 export async function sendTestReminder() {
   const { user } = await requireUser();
   const recipient = process.env.REMINDER_EMAIL?.trim() ?? user.email;
