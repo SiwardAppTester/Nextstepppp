@@ -317,7 +317,7 @@ async function streamCoach(
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, conversationId }),
+    body: JSON.stringify({ messages, conversationId, voice: true }),
   });
 
   if (!res.ok || !res.body) {
