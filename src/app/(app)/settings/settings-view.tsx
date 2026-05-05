@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import type { Category } from "@/lib/types";
-import { updateCategoryContext } from "./actions";
+import { updateCategoryContext, sendTestReminder } from "./actions";
 
 const iconMap: Record<string, LucideIcon> = {
   User: UserIcon,
@@ -91,32 +91,8 @@ export function SettingsView({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Bell className="h-3.5 w-3.5 text-[var(--color-accent)]" />
-                <CardTitle>Notifications</CardTitle>
-              </div>
-              <CardDescription>Reminders fire via Web Push (primary) and email (fallback).</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <ToggleRow
-                icon={Bell}
-                title="Web Push"
-                hint="Browser notifications. Requires permission."
-                badge="Phase 3"
-              />
-              <ToggleRow
-                icon={Mail}
-                title="Email reminders (Resend)"
-                hint="Sent to your owner email. Backup channel."
-                badge="Phase 3"
-              />
-              <Button size="sm" variant="secondary" disabled>
-                Send test notification
-              </Button>
-            </CardContent>
-          </Card>
+          <NotificationsCard />
+
 
           <Card>
             <CardHeader>
@@ -268,5 +244,70 @@ function ToggleRow({
         <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-[var(--color-text-subtle)]" />
       </button>
     </div>
+  );
+}
+
+function NotificationsCard() {
+  const [pending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  function onTest() {
+    setFeedback(null);
+    startTransition(async () => {
+      const r = await sendTestReminder();
+      if (r.ok) setFeedback({ ok: true, msg: `Sent to ${r.to}. Check your inbox (also spam).` });
+      else setFeedback({ ok: false, msg: r.error ?? "Couldn't send test." });
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Bell className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+          <CardTitle>Notifications</CardTitle>
+        </div>
+        <CardDescription>
+          Reminders fire automatically every 5 minutes for tasks with a scheduled time. Email goes
+          via Resend; Web Push lands in a follow-up.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <ToggleRow
+          icon={Bell}
+          title="Web Push"
+          hint="Browser notifications. Requires permission."
+          badge="Coming soon"
+        />
+        <div className="flex items-center gap-3 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]">
+            <Mail className="h-3.5 w-3.5" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-medium">Email reminders (Resend)</span>
+              <Badge tone="success">Live</Badge>
+            </div>
+            <div className="text-[11.5px] text-[var(--color-text-muted)]">
+              Sent to the address in <code className="text-[var(--color-text-muted)]">REMINDER_EMAIL</code> env var.
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={onTest} disabled={pending}>
+            {pending ? "Sending…" : "Send test reminder"}
+          </Button>
+          {feedback && (
+            <span
+              className={`text-[12px] ${
+                feedback.ok ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"
+              }`}
+            >
+              {feedback.msg}
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

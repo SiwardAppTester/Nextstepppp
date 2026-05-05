@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { embed } from "./embedding";
 import { addMinutes, addHours, addDays, parse, parseISO, isValid } from "date-fns";
+import { nextOccurrence } from "@/lib/recurring";
 
 /**
  * The Coach's tool surface — the only way it touches the database.
@@ -396,29 +397,6 @@ function coerceToISO(s: string): string {
   if (isValid(native)) return native.toISOString();
 
   return trimmed; // db will error on bad input rather than silently wrong-time
-}
-
-function nextOccurrence(pattern: string, fromIso: string | null): string | null {
-  const base = fromIso ? new Date(fromIso) : new Date();
-  if (!isValid(base)) return null;
-  const lower = pattern.toLowerCase().trim();
-
-  if (lower === "daily") return addDays(base, 1).toISOString();
-  if (lower === "weekly") return addDays(base, 7).toISOString();
-  if (lower === "monthly") return addDays(base, 30).toISOString();
-
-  if (lower.startsWith("weekly:")) {
-    // weekly:mon,wed,fri — pick the next listed weekday after `base`.
-    const days = lower.slice("weekly:".length).split(",").map((d) => d.trim());
-    const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-    const targets = days.map((d) => dayMap[d]).filter((n) => n !== undefined);
-    if (targets.length === 0) return null;
-    for (let offset = 1; offset <= 7; offset++) {
-      const candidate = addDays(base, offset);
-      if (targets.includes(candidate.getDay())) return candidate.toISOString();
-    }
-  }
-  return null;
 }
 
 // silence unused-import warning when bundler tree-shakes
