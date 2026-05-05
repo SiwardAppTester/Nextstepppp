@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.74",
     "@ai-sdk/react": "^3.0.177",
+    "@ricky0123/vad-web": "^0.0.30",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",
     "ai": "^6.0.175",
@@ -19,6 +20,7 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
+    "onnxruntime-web": "^1.25.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "^3.5.0",
