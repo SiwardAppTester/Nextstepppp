@@ -1,26 +1,432 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+  Nextsteppp — design tokens
+  Dark, futuristic, clean. Floating depth via layered surfaces + soft shadows + selective accent glow.
+  Themes:
+    - Default = dark (no data-theme attribute, or data-theme="dark")
+    - Light = data-theme="light" on <html>
+*/
+
+@theme {
+  /* Surfaces */
+  --color-bg: hsl(225 18% 5%);
+  --color-bg-elevated: hsl(225 16% 7%);
+  --color-surface: hsl(225 14% 9%);
+  --color-surface-2: hsl(225 14% 11%);
+  --color-surface-hover: hsl(225 14% 13%);
+
+  /* Borders */
+  --color-border: hsl(225 12% 16%);
+  --color-border-strong: hsl(225 12% 24%);
+  --color-border-accent: hsl(0 0% 100% / 0.36);
+
+  /* Text */
+  --color-text: hsl(210 20% 96%);
+  --color-text-muted: hsl(225 10% 64%);
+  --color-text-subtle: hsl(225 8% 42%);
+
+  /* Accent — pure white in dark, pure black in light */
+  --color-accent: hsl(0 0% 100%);
+  --color-accent-hover: hsl(0 0% 92%);
+  --color-accent-foreground: hsl(225 30% 8%); /* text color when on accent bg */
+  --color-accent-soft: hsl(0 0% 100% / 0.07);
+  --color-accent-glow: hsl(0 0% 100% / 0.22);
+
+  /* Status (kept across modes — slight saturation tweak in light mode) */
+  --color-success: hsl(155 60% 52%);
+  --color-warning: hsl(38 95% 62%);
+  --color-danger: hsl(0 72% 62%);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Fonts */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Card / surface shadows */
+  --shadow-float:
+    0 1px 0 0 hsl(225 12% 22%) inset,
+    0 0 0 1px hsl(225 12% 14%),
+    0 12px 30px -12px hsl(225 50% 0% / 0.6);
+  --shadow-elevated:
+    0 1px 0 0 hsl(225 12% 26%) inset,
+    0 0 0 1px hsl(225 12% 16%),
+    0 24px 60px -20px hsl(225 60% 0% / 0.75);
+
+  /* Component shadows — referenced from button/input/composer/login */
+  --shadow-button-primary:
+    0 1px 0 0 hsl(0 0% 100% / 0.4) inset,
+    0 0 0 1px hsl(0 0% 100% / 0.18),
+    0 8px 24px -10px hsl(0 0% 100% / 0.4);
+  --shadow-button-primary-hover:
+    0 1px 0 0 hsl(0 0% 100% / 0.5) inset,
+    0 0 0 1px hsl(0 0% 100% / 0.28),
+    0 12px 30px -10px hsl(0 0% 100% / 0.5);
+  --shadow-input-focus:
+    0 0 0 1px hsl(0 0% 100% / 0.28),
+    0 0 22px -8px hsl(0 0% 100% / 0.28);
+  --shadow-composer-focus:
+    0 0 0 1px hsl(0 0% 100% / 0.22),
+    0 0 36px -10px hsl(0 0% 100% / 0.28),
+    0 24px 60px -20px hsl(225 60% 0% / 0.7);
+  --shadow-send-button:
+    0 0 0 1px hsl(0 0% 100% / 0.25),
+    0 0 18px -4px hsl(0 0% 100% / 0.3);
+
+  /* Login card top-edge highlight gradient */
+  --gradient-login-rim:
+    linear-gradient(180deg, hsl(0 0% 100% / 0.28), hsl(225 12% 16%) 30%, hsl(225 12% 16%));
+
+  /* Card top-inner sheen (used by .float-card::before) */
+  --sheen-card: linear-gradient(180deg, hsl(0 0% 100% / 0.025), transparent 30%);
+
+  /* Ambient backdrop layers */
+  --ambient-wash: radial-gradient(80% 50% at 50% -10%, hsl(0 0% 100% / 0.035), transparent 60%);
+  --ambient-grid-color: hsl(225 12% 16% / 0.4);
+  --ambient-grid-mask: radial-gradient(ellipse 100% 70% at 50% 0%, black, transparent 70%);
+
+  /* Scrollbar */
+  --scrollbar-thumb: hsl(225 12% 18%);
+  --scrollbar-thumb-hover: hsl(225 12% 26%);
+
+  /* Selection highlight */
+  --selection-bg: hsl(0 0% 100% / 0.18);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* =========================================================================
+   LIGHT MODE — overrides only. Same component code, different vars.
+   ========================================================================= */
+[data-theme="light"] {
+  --color-bg: hsl(0 0% 99%);
+  --color-bg-elevated: hsl(225 14% 97%);
+  --color-surface: hsl(0 0% 100%);
+  --color-surface-2: hsl(225 14% 96%);
+  --color-surface-hover: hsl(225 14% 93%);
+
+  --color-border: hsl(225 12% 90%);
+  --color-border-strong: hsl(225 12% 80%);
+  --color-border-accent: hsl(0 0% 0% / 0.45);
+
+  --color-text: hsl(225 25% 10%);
+  --color-text-muted: hsl(225 10% 38%);
+  --color-text-subtle: hsl(225 8% 58%);
+
+  --color-accent: hsl(0 0% 0%);
+  --color-accent-hover: hsl(0 0% 18%);
+  --color-accent-foreground: hsl(0 0% 100%);
+  --color-accent-soft: hsl(0 0% 0% / 0.05);
+  --color-accent-glow: hsl(0 0% 0% / 0.18);
+
+  --color-success: hsl(155 60% 35%);
+  --color-warning: hsl(35 90% 42%);
+  --color-danger: hsl(0 70% 48%);
+
+  --shadow-float:
+    0 1px 0 0 hsl(0 0% 100% / 0.7) inset,
+    0 0 0 1px hsl(225 12% 88%),
+    0 8px 24px -10px hsl(225 30% 50% / 0.16);
+  --shadow-elevated:
+    0 1px 0 0 hsl(0 0% 100% / 0.7) inset,
+    0 0 0 1px hsl(225 12% 82%),
+    0 16px 40px -12px hsl(225 30% 50% / 0.22);
+
+  --shadow-button-primary:
+    0 1px 0 0 hsl(0 0% 100% / 0.18) inset,
+    0 0 0 1px hsl(0 0% 0% / 0.4),
+    0 8px 24px -10px hsl(0 0% 0% / 0.32);
+  --shadow-button-primary-hover:
+    0 1px 0 0 hsl(0 0% 100% / 0.22) inset,
+    0 0 0 1px hsl(0 0% 0% / 0.6),
+    0 12px 30px -10px hsl(0 0% 0% / 0.45);
+  --shadow-input-focus:
+    0 0 0 1px hsl(0 0% 0% / 0.32),
+    0 0 22px -8px hsl(0 0% 0% / 0.16);
+  --shadow-composer-focus:
+    0 0 0 1px hsl(0 0% 0% / 0.28),
+    0 0 36px -10px hsl(0 0% 0% / 0.16),
+    0 24px 60px -20px hsl(225 30% 50% / 0.18);
+  --shadow-send-button:
+    0 0 0 1px hsl(0 0% 0% / 0.4),
+    0 0 18px -4px hsl(0 0% 0% / 0.18);
+
+  --gradient-login-rim:
+    linear-gradient(180deg, hsl(0 0% 0% / 0.22), hsl(225 12% 90%) 30%, hsl(225 12% 90%));
+  --sheen-card: linear-gradient(180deg, hsl(0 0% 100% / 0.6), transparent 35%);
+
+  --ambient-wash: radial-gradient(80% 50% at 50% -10%, hsl(225 50% 70% / 0.10), transparent 60%);
+  --ambient-grid-color: hsl(225 12% 70% / 0.18);
+  --ambient-grid-mask: radial-gradient(ellipse 100% 70% at 50% 0%, black, transparent 70%);
+
+  --scrollbar-thumb: hsl(225 12% 80%);
+  --scrollbar-thumb-hover: hsl(225 12% 65%);
+
+  --selection-bg: hsl(0 0% 0% / 0.14);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Smooth theme transition (limited to color props so layouts don't animate) */
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01";
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100dvh;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
 }
+
+/* Ambient backdrop — radial wash + faint grid */
+.ambient-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--ambient-wash);
+}
+
+.ambient-bg::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, var(--ambient-grid-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ambient-grid-color) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: var(--ambient-grid-mask);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+/* Selection */
+::selection {
+  background: var(--selection-bg);
+  color: var(--color-text);
+}
+
+/* Focus rings */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Floating card utility — used everywhere via .float-card */
+.float-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  position: relative;
+}
+.float-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--sheen-card);
+  pointer-events: none;
+}
+
+/* Animated typing dots */
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
+}
+.dot-1 { animation: pulse-dot 1.2s infinite ease-in-out; }
+.dot-2 { animation: pulse-dot 1.2s infinite ease-in-out 0.15s; }
+.dot-3 { animation: pulse-dot 1.2s infinite ease-in-out 0.3s; }
+
+/* Glow pulse for active states (e.g. empty-state brand mark) */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--color-border-accent), 0 0 20px -6px var(--color-accent-glow); }
+  50% { box-shadow: 0 0 0 1px var(--color-border-accent), 0 0 28px -2px var(--color-accent-glow); }
+}
+.glow-pulse {
+  animation: glow-pulse 3s infinite ease-in-out;
+}
+
+/* Theme-toggle icon swap (no JS hydration mismatch) */
+.theme-icon-light { display: inline-flex; }
+.theme-icon-dark  { display: none; }
+[data-theme="light"] .theme-icon-light { display: none; }
+[data-theme="light"] .theme-icon-dark  { display: inline-flex; }
+
+/* =========================================================================
+   SIDEBAR COLLAPSE — driven by data-sidebar="collapsed" on <html>
+   Default = expanded. Toggle writes localStorage + flips the attribute.
+   ========================================================================= */
+
+.app-sidebar {
+  width: 260px;
+  transition: width 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-sidebar="collapsed"] .app-sidebar {
+  width: 56px;
+}
+
+/* Hide expanded-only chrome when collapsed */
+[data-sidebar="collapsed"] .sidebar-only-expanded {
+  display: none !important;
+}
+
+/* Show collapsed-only bits when collapsed */
+.sidebar-only-collapsed {
+  display: none;
+}
+[data-sidebar="collapsed"] .sidebar-only-collapsed {
+  display: flex;
+}
+
+/* Center nav items when collapsed (icon-only rail) */
+[data-sidebar="collapsed"] .sidebar-nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+[data-sidebar="collapsed"] .sidebar-nav-item .sidebar-active-rail {
+  display: none;
+}
+
+/* Toggle icon swap */
+.sidebar-icon-collapse { display: inline-flex; }
+.sidebar-icon-expand   { display: none; }
+[data-sidebar="collapsed"] .sidebar-icon-collapse { display: none; }
+[data-sidebar="collapsed"] .sidebar-icon-expand   { display: inline-flex; }
+
+/* =========================================================================
+   VOICE MODE — full-screen "talk to the Coach" surface, /voice
+   Driven by data-voice-state on the page wrapper.
+   ========================================================================= */
+
+.voice-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  isolation: isolate;
+}
+
+/* Ambient halo behind the orb, scaled with state */
+.voice-stage::before {
+  content: "";
+  position: absolute;
+  width: 60vmin;
+  height: 60vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-accent-glow), transparent 60%);
+  filter: blur(40px);
+  opacity: 0.6;
+  z-index: -1;
+  animation: orb-halo 6s infinite ease-in-out;
+}
+[data-voice-state="listening"] .voice-stage::before { animation-duration: 1.6s; opacity: 0.9; }
+[data-voice-state="speaking"]  .voice-stage::before { animation-duration: 2.4s; opacity: 0.85; }
+
+@keyframes orb-halo {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* The orb itself */
+.orb {
+  position: relative;
+  width: 240px;
+  height: 240px;
+}
+.orb-core {
+  position: absolute;
+  inset: 24px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, var(--color-accent) 0%, transparent 55%),
+    radial-gradient(circle at 65% 70%, var(--color-accent-soft) 0%, transparent 60%),
+    var(--color-surface);
+  border: 1px solid var(--color-border-accent);
+  box-shadow:
+    inset 0 0 60px hsl(0 0% 100% / 0.06),
+    0 0 60px -10px var(--color-accent-glow);
+  animation: orb-breathe 5s infinite ease-in-out;
+}
+[data-theme="light"] .orb-core {
+  box-shadow:
+    inset 0 0 60px hsl(0 0% 0% / 0.04),
+    0 0 60px -10px var(--color-accent-glow);
+}
+.orb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-accent);
+  opacity: 0.35;
+  animation: orb-ring-pulse 4s infinite ease-in-out;
+}
+.orb-ring.r2 {
+  inset: 12px;
+  animation-delay: 1.2s;
+  animation-duration: 5s;
+}
+
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+@keyframes orb-ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.06); opacity: 0.55; }
+}
+
+/* State accelerations */
+[data-voice-state="listening"] .orb-core {
+  animation-duration: 1.4s;
+  box-shadow:
+    inset 0 0 60px hsl(0 0% 100% / 0.1),
+    0 0 80px -10px var(--color-accent-glow);
+}
+[data-theme="light"] [data-voice-state="listening"] .orb-core {
+  box-shadow:
+    inset 0 0 60px hsl(0 0% 0% / 0.07),
+    0 0 80px -10px var(--color-accent-glow);
+}
+[data-voice-state="listening"] .orb-ring { animation-duration: 1.6s; opacity: 0.7; }
+[data-voice-state="speaking"] .orb-core { animation-duration: 0.9s; }
+[data-voice-state="speaking"] .orb-ring { animation-duration: 1.2s; }
+[data-voice-state="thinking"] .orb-core { animation-duration: 2.5s; opacity: 0.75; }
