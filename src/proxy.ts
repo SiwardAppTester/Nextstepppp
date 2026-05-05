@@ -6,7 +6,6 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/api/auth/login",
   "/api/auth/signout",
-  "/api/auth/dev-login",
 ];
 
 export async function proxy(request: NextRequest) {
