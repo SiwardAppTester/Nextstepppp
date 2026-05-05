@@ -111,7 +111,20 @@ export default function VoicePage() {
       };
       messagesRef.current = [...messagesRef.current, userMsg];
 
-      const replyText = await streamCoach(messagesRef.current, conversationId, setReply, setConversationId);
+      // SpeechQueue plays sentences in order as they arrive, so the user starts
+      // hearing the reply while later sentences are still being generated.
+      const speech = new SpeechQueue(() => setState("speaking"));
+
+      const replyText = await streamCoach(
+        messagesRef.current,
+        conversationId,
+        setReply,
+        setConversationId,
+        (sentence) => speech.add(sentence)
+      );
+
+      // Wait for every queued utterance to finish playing before we re-enable VAD.
+      await speech.done();
 
       if (replyText.trim()) {
         // Append Coach reply for next turn's context.
@@ -123,9 +136,6 @@ export default function VoicePage() {
             parts: [{ type: "text", text: replyText }],
           },
         ];
-
-        setState("speaking");
-        await speak(replyText);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -301,7 +311,8 @@ async function streamCoach(
   messages: UIMessage[],
   conversationId: string | null,
   onPartial: (text: string) => void,
-  onConversationId: (id: string) => void
+  onConversationId: (id: string) => void,
+  onSentence: (sentence: string) => void
 ): Promise<string> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -320,6 +331,7 @@ async function streamCoach(
   const decoder = new TextDecoder();
   let buffer = "";
   let fullText = "";
+  let spokenIndex = 0; // how much of fullText has already been handed to the speech queue
 
   while (true) {
     const { done, value } = await reader.read();
@@ -339,26 +351,84 @@ async function streamCoach(
         if (event.type === "text-delta" && typeof event.delta === "string") {
           fullText += event.delta;
           onPartial(fullText);
+
+          // Peel off any newly-completed sentences and hand them to TTS.
+          // Match terminal punctuation that's *followed by whitespace* — the
+          // trailing whitespace is what tells us the model has actually moved
+          // on past the sentence, not just landed mid-token at a period.
+          while (true) {
+            const remaining = fullText.slice(spokenIndex);
+            const m = remaining.match(/^([\s\S]*?[.!?\n])\s+/);
+            if (!m) break;
+            const sentence = m[1].trim();
+            if (sentence) onSentence(sentence);
+            spokenIndex += m[0].length;
+          }
         }
       } catch {}
     }
   }
 
+  // Flush any tail that didn't end with terminal punctuation + whitespace.
+  const tail = fullText.slice(spokenIndex).trim();
+  if (tail) onSentence(tail);
+
   return fullText;
 }
 
-function speak(text: string): Promise<void> {
-  return new Promise((resolve) => {
-    try {
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.05;
-      utter.pitch = 1.0;
+/**
+ * Plays sentences in order using SpeechSynthesisUtterance. Each call to add()
+ * queues an utterance; the browser plays them serially. done() resolves once
+ * every queued utterance has finished (or errored).
+ */
+class SpeechQueue {
+  private pending: Promise<void>[] = [];
+  private firstUtteranceQueued = false;
+  private onFirstSpeak: () => void;
+
+  constructor(onFirstSpeak: () => void) {
+    this.onFirstSpeak = onFirstSpeak;
+  }
+
+  add(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    // Drop accidental markdown noise that sounds bad spoken aloud.
+    const speakable = stripMarkdown(trimmed);
+    if (!speakable) return;
+
+    const utter = new SpeechSynthesisUtterance(speakable);
+    utter.rate = 1.05;
+    utter.pitch = 1.0;
+
+    const promise = new Promise<void>((resolve) => {
       utter.onend = () => resolve();
       utter.onerror = () => resolve();
+    });
+    this.pending.push(promise);
+
+    try {
       window.speechSynthesis.speak(utter);
+      if (!this.firstUtteranceQueued) {
+        this.firstUtteranceQueued = true;
+        this.onFirstSpeak();
+      }
     } catch {
-      resolve();
+      // ignore — promise will resolve via onerror handler if anything actually fired
     }
-  });
+  }
+
+  done(): Promise<void> {
+    return Promise.all(this.pending).then(() => undefined);
+  }
+}
+
+function stripMarkdown(s: string): string {
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, "$1")    // bold
+    .replace(/\*([^*]+)\*/g, "$1")         // italic
+    .replace(/`([^`]+)`/g, "$1")           // inline code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // markdown links
+    .trim();
 }
