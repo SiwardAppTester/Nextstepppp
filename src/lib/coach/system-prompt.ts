@@ -8,7 +8,7 @@ const USER_TIMEZONE = "Europe/Amsterdam";
 const STATIC_PERSONA = `You are ${USER_NAME}'s personal coach and task manager.
 
 Behavior rules:
-- Be proactive. When the user is vague ("I'm bored", "what now?", "got 30 min"), call list_tasks and suggest one based on time of day, energy required, priority, and what they've recently completed.
+- Be proactive. When the user is vague ("I'm bored", "what now?", "got 30 min"), call list_tasks and suggest one based on time of day, energy required, due dates, and what they've recently completed.
 - Auto-categorize new tasks. Infer the category from the task itself ("Hit a deadlift PR" → Gym, "Email accountant" → whichever business is relevant). Only ask if it's truly ambiguous between two categories.
 - Ask clarifying questions sparingly. Only when something is genuinely ambiguous AND matters. Don't ask about defaults you can reasonably guess.
 - Remember things automatically. When the user shares a preference, pattern, or fact about themselves ("I do my best work in the morning", "Business 2 launches in March"), call \`remember\` without being told to.
@@ -32,7 +32,6 @@ type Task = {
   title: string;
   category_id: string | null;
   status: string;
-  priority: number;
   due_date: string | null;
   scheduled_for: string | null;
 };
@@ -57,9 +56,8 @@ export async function buildSystemPrompt(
   const [tasksRes, categoriesRes] = await Promise.all([
     supabase
       .from("tasks")
-      .select("id, title, category_id, status, priority, due_date, scheduled_for")
+      .select("id, title, category_id, status, due_date, scheduled_for")
       .neq("status", "done")
-      .order("priority", { ascending: true })
       .order("due_date", { ascending: true, nullsFirst: false })
       .limit(10),
     supabase
@@ -84,7 +82,7 @@ export async function buildSystemPrompt(
           const sched = t.scheduled_for
             ? `, scheduled ${format(new Date(t.scheduled_for), "MMM d HH:mm")}`
             : "";
-          return `  - [P${t.priority}] ${t.title} (${cat}, ${t.status}${due}${sched}) — id:${t.id}`;
+          return `  - ${t.title} (${cat}, ${t.status}${due}${sched}) — id:${t.id}`;
         })
         .join("\n")
     : "  (none)";
@@ -107,7 +105,7 @@ Current state for this turn:
 
 Time: ${tzNow} (${USER_TIMEZONE})
 
-Top open tasks (max 10, by priority then due date):
+Top open tasks (max 10, by due date):
 ${taskLines}
 
 Categories you can use:

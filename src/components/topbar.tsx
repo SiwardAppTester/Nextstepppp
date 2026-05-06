@@ -1,5 +1,4 @@
 import { ChevronRight } from "lucide-react";
-import { ThemeToggle } from "./theme-toggle";
 
 type Crumb = { label: string; href?: string };
 
@@ -35,7 +34,6 @@ export function Topbar({
       </nav>
       <div className="flex items-center gap-2">
         {right}
-        <ThemeToggle />
       </div>
     </div>
   );

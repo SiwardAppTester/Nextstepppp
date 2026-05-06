@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Category } from "@/lib/types";
+import { ThemeToggle } from "./theme-toggle";
 
 const nav: { href: string; label: string; icon: LucideIcon; hint?: string }[] = [
   { href: "/chat", label: "Chat", icon: MessageSquare, hint: "Coach" },
@@ -128,13 +129,13 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
         })}
       </nav>
 
-      <div className="px-3 mt-2 sidebar-only-expanded">
-        <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-subtle)]">
+      <div className="px-3 mt-2">
+        <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-subtle)] sidebar-only-expanded">
           Categories
         </div>
         <div className="flex flex-col gap-0.5">
           {categories.length === 0 && (
-            <div className="px-2.5 py-2 text-[11px] text-[var(--color-text-subtle)]">
+            <div className="px-2.5 py-2 text-[11px] text-[var(--color-text-subtle)] sidebar-only-expanded">
               No categories yet.
             </div>
           )}
@@ -145,7 +146,8 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
               <Link
                 key={cat.id}
                 href={`/tasks?category=${cat.id}`}
-                className="group flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[12.5px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                title={cat.name}
+                className="sidebar-nav-item group flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[12.5px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
               >
                 <span
                   className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border"
@@ -158,8 +160,8 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
                 >
                   <Icon className="h-2.5 w-2.5" strokeWidth={2.4} />
                 </span>
-                <span className="flex-1 text-left truncate">{cat.name}</span>
-                <span className="text-[10px] tabular-nums text-[var(--color-text-subtle)] group-hover:text-[var(--color-text-muted)]">
+                <span className="sidebar-only-expanded flex-1 text-left truncate">{cat.name}</span>
+                <span className="sidebar-only-expanded text-[10px] tabular-nums text-[var(--color-text-subtle)] group-hover:text-[var(--color-text-muted)]">
                   {count}
                 </span>
               </Link>
@@ -169,6 +171,10 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
       </div>
 
       <div className="mt-auto border-t border-[var(--color-border)] p-3">
+        {/* Expanded: theme toggle row above user card */}
+        <div className="sidebar-only-expanded flex items-center justify-end mb-2">
+          <ThemeToggle />
+        </div>
         <div className="sidebar-only-expanded flex items-center gap-2.5 rounded-[8px] bg-[var(--color-surface)] px-2.5 py-2 border border-[var(--color-border)]">
           <UserAvatar initial={user.initial} />
           <div className="flex flex-col leading-tight min-w-0 flex-1">
@@ -179,7 +185,9 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
           </div>
           <SignOutButton />
         </div>
+        {/* Collapsed: theme toggle + avatar + signout, vertically centered */}
         <div className="sidebar-only-collapsed flex-col items-center gap-1.5" title={user.email}>
+          <ThemeToggle />
           <UserAvatar initial={user.initial} />
           <SignOutButton compact />
         </div>

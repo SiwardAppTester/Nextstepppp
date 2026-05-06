@@ -73,11 +73,6 @@ export function TaskRow({
             )}
           </div>
 
-          {task.priority <= 2 && task.status !== "done" && (
-            <Badge tone={task.priority === 1 ? "danger" : "warning"} className="shrink-0">
-              P{task.priority}
-            </Badge>
-          )}
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">

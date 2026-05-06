@@ -24,14 +24,6 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
           .nullable()
           .optional()
           .describe("Category id from the system context. Null/omit if uncategorized."),
-        priority: z
-          .number()
-          .int()
-          .min(1)
-          .max(5)
-          .optional()
-          .default(3)
-          .describe("1=high, 5=low. Default 3."),
         due_date: z
           .string()
           .nullable()
@@ -63,7 +55,6 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
             user_id: userId,
             title: input.title,
             category_id: input.category_id ?? null,
-            priority: input.priority ?? 3,
             due_date,
             scheduled_for,
             recurring: input.recurring ?? null,
@@ -89,8 +80,7 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
       execute: async (input) => {
         let q = supabase
           .from("tasks")
-          .select("id, title, description, status, priority, category_id, due_date, scheduled_for, recurring, created_at")
-          .order("priority", { ascending: true })
+          .select("id, title, description, status, category_id, due_date, scheduled_for, recurring, created_at")
           .order("due_date", { ascending: true, nullsFirst: false })
           .limit(input.limit ?? 20);
         if (input.category_id) q = q.eq("category_id", input.category_id);
@@ -112,7 +102,6 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
         description: z.string().nullable().optional(),
         category_id: z.string().nullable().optional(),
         status: z.enum(["todo", "done"]).optional(),
-        priority: z.number().int().min(1).max(5).optional(),
         due_date: z.string().nullable().optional(),
         scheduled_for: z.string().nullable().optional(),
         recurring: z.string().nullable().optional(),
@@ -145,7 +134,7 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
       execute: async ({ id }) => {
         const { data: existing, error: getErr } = await supabase
           .from("tasks")
-          .select("id, recurring, scheduled_for, due_date, title, category_id, priority, description")
+          .select("id, recurring, scheduled_for, due_date, title, category_id, description")
           .eq("id", id)
           .single();
         if (getErr) return { ok: false, error: getErr.message };
@@ -166,7 +155,6 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
               title: existing.title,
               description: existing.description,
               category_id: existing.category_id,
-              priority: existing.priority,
               recurring: existing.recurring,
               scheduled_for: existing.scheduled_for ? next : null,
               due_date: existing.due_date ? next : null,

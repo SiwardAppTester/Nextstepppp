@@ -63,42 +63,50 @@ export function TasksView({ initialTasks, categories, initialCategoryFilter }: P
       )}
 
       <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)]/60 backdrop-blur-sm px-6 py-3.5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[220px] max-w-[360px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-text-subtle)]" />
-            <Input
-              placeholder="Search tasks…"
-              className="pl-9 h-9"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+        {/* 3-column layout: search left, status pills truly centered, category right.
+            Each column flex-1 so the middle item lands at 50% of the row width. */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 flex justify-start">
+            <div className="relative w-full max-w-[320px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-text-subtle)]" />
+              <Input
+                placeholder="Search tasks…"
+                className="pl-9 h-9"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 flex justify-center">
+            <div className="flex items-center gap-1 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
+              {statusFilters.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setActiveStatus(f.id)}
+                  className={cn(
+                    "rounded-[6px] px-2.5 py-1 text-[12px] font-medium transition-all",
+                    activeStatus === f.id
+                      ? "bg-[var(--color-surface-hover)] text-[var(--color-text)] shadow-[0_0_0_1px_var(--color-border-strong)]"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  )}
+                >
+                  {f.label}
+                  <span className="ml-1.5 text-[10px] tabular-nums text-[var(--color-text-subtle)]">
+                    {counts[f.id] ?? 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex-1 flex justify-end">
+            <CategoryDropdown
+              value={activeCategory}
+              onChange={setActiveCategory}
+              categories={categories}
             />
           </div>
-
-          <div className="flex items-center gap-1 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
-            {statusFilters.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setActiveStatus(f.id)}
-                className={cn(
-                  "rounded-[6px] px-2.5 py-1 text-[12px] font-medium transition-all",
-                  activeStatus === f.id
-                    ? "bg-[var(--color-surface-hover)] text-[var(--color-text)] shadow-[0_0_0_1px_var(--color-border-strong)]"
-                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                )}
-              >
-                {f.label}
-                <span className="ml-1.5 text-[10px] tabular-nums text-[var(--color-text-subtle)]">
-                  {counts[f.id] ?? 0}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <CategoryDropdown
-            value={activeCategory}
-            onChange={setActiveCategory}
-            categories={categories}
-          />
         </div>
       </div>
 
@@ -204,21 +212,6 @@ function NewTaskRow({
           {categories.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
-        </select>
-        <select
-          name="priority"
-          defaultValue="3"
-          className={cn(
-            "appearance-none cursor-pointer h-10 rounded-[10px] border bg-[var(--color-surface)] px-3 text-[13px]",
-            "border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-border-strong)]",
-            "focus:outline-none focus:border-[var(--color-border-accent)]"
-          )}
-        >
-          <option value="1">P1 — High</option>
-          <option value="2">P2</option>
-          <option value="3">P3 — Default</option>
-          <option value="4">P4</option>
-          <option value="5">P5 — Low</option>
         </select>
         <Button type="submit" variant="primary" size="md" disabled={pending}>
           {pending ? "Adding…" : "Add"}
