@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, History } from "lucide-react";
@@ -39,9 +39,26 @@ export function ChatView({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({ conversationId: conversationIdRef.current }),
+      // Intercept the response so we can capture the conversation id the server
+      // assigned (or echoed). Without this, every message in a fresh chat gets
+      // sent with conversationId: null and creates a new row each time.
+      fetch: async (input, init) => {
+        const res = await fetch(input as RequestInfo, init);
+        const id = res.headers.get("X-Conversation-Id");
+        if (id) {
+          const wasFresh = conversationIdRef.current === null;
+          conversationIdRef.current = id;
+          // Sync the URL on the first message of a fresh chat so the page is
+          // refreshable / shareable. router.replace doesn't trigger a re-render.
+          if (wasFresh) {
+            router.replace(`/chat?c=${id}`);
+          }
+        }
+        return res;
+      },
     }),
     onFinish: () => {
-      // Refresh the server component to pick up the new conversation in the rail
+      // Refresh the server component so the rail picks up the new conversation
       // (and any DB-side state the Coach mutated via tool calls).
       router.refresh();
     },
@@ -132,7 +149,7 @@ export function ChatView({
                   {c.title ?? "Untitled"}
                 </div>
                 <div className="text-[10px] text-[var(--color-text-subtle)] mt-0.5">
-                  {formatDistanceToNow(new Date(c.last_message_at), { addSuffix: true })}
+                  <TimeAgo iso={c.last_message_at} />
                 </div>
               </Link>
             );
@@ -141,6 +158,19 @@ export function ChatView({
       </div>
     </div>
   );
+}
+
+/**
+ * Renders a "time ago" string only after mount so the SSR-rendered HTML never
+ * disagrees with the post-hydration string (relative-time crosses the
+ * minute boundary between the two and React errors out).
+ */
+function TimeAgo({ iso }: { iso: string }) {
+  const [text, setText] = useState<string>("");
+  useEffect(() => {
+    setText(formatDistanceToNow(new Date(iso), { addSuffix: true }));
+  }, [iso]);
+  return <span suppressHydrationWarning>{text}</span>;
 }
 
 function EmptyState() {
