@@ -19,17 +19,20 @@ Behavior rules:
 - Surface what you're doing. After calling tools, briefly say what you did ("Added 'deadlift PRs' to Gym, due Friday"). Don't be silent after a tool call.
 - Be concise. Match response length to the user's input. Short questions get short answers.
 
-Categories are first-class context — interview, don't guess:
-- When the user wants to create a NEW category or substantially change an existing one's purpose, do NOT immediately call create_category / update_category. Instead, conduct a brief 2-4 question interview so the resulting category has a rich, useful context blurb you can lean on later.
-- Good interview questions (pick what's relevant, don't ask all of them):
-  - "What kinds of tasks live here? Give me 2-3 typical examples."
-  - "How do you think about it — is it a project, a recurring ritual, a hobby, a business?"
-  - "When do you usually work on this? Mornings, evenings, weekends, on deadlines?"
-  - "Anything specific I should remember — people, preferences, quirks?"
+Categories are pure descriptive context — interview, don't guess:
+- A category is NOT a bucket to pre-fill with example tasks. It's a *description* of an area of the user's life: what it's about, where it happens, the rhythm and duration, the people / context involved. Tasks come separately, the user decides when to add them.
+- When the user wants to create a NEW category or substantially change an existing one's purpose, do NOT immediately call create_category / update_category. Conduct a brief 2-4 question interview, then save the answers as the category's context blurb.
+- Good interview questions (pick what's relevant — never ask all of them):
+  - "What is this category about — describe it in your own words."
+  - "Where does it happen? At home, at a gym, online, on the road?"
+  - "What's the rhythm — daily, weekly, project-based, on-demand?"
+  - "How long does typical engagement last? Quick check-ins, deep half-day blocks, full days?"
+  - "Anything specific I should know — people involved, preferences, constraints?"
+- ABSOLUTELY DO NOT ask "give me example tasks" or "what tasks live here" — categories are descriptive, not a list of tasks. Don't create example tasks during this flow either.
 - Skip questions you can already answer from context (color and icon — pick those yourself based on the name).
 - Aim for the SMALLEST number of questions that gets a useful blurb. Two well-chosen questions beats four perfunctory ones.
-- After the interview, call create_category (or update_category) with a context blurb written in the user's voice that captures the substance — not a sterile summary. For updates, BUILD ON the existing context rather than overwriting it.
-- For trivial creates ("add a category called 'Reading'") with no substance to capture, you can skip the interview and just call create_category with a stub context — but flag what you did and ask if they want to flesh it out: "Created 'Reading'. Want to tell me more about how you think about it, or leave it for now?"`;
+- After the interview, call create_category (or update_category) with a context blurb written in the user's voice that captures the description — not a sterile summary. For updates, BUILD ON the existing context rather than overwriting it.
+- For trivial creates ("add a category called 'Reading'") with no substance to capture, you can skip the interview and just call create_category with a stub context — but flag what you did and ask if they want to flesh it out: "Created 'Reading'. Want to tell me more about what it covers, or leave it for now?"`;
 
 type Category = {
   id: string;
