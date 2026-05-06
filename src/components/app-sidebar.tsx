@@ -171,8 +171,8 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
       </div>
 
       <div className="mt-auto border-t border-[var(--color-border)] p-3">
-        {/* Expanded: theme toggle row above user card */}
-        <div className="sidebar-only-expanded flex items-center justify-end mb-2">
+        {/* Expanded: theme toggle row above user card, left-aligned */}
+        <div className="sidebar-only-expanded flex items-center justify-start mb-2">
           <ThemeToggle />
         </div>
         <div className="sidebar-only-expanded flex items-center gap-2.5 rounded-[8px] bg-[var(--color-surface)] px-2.5 py-2 border border-[var(--color-border)]">
