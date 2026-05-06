@@ -48,10 +48,12 @@ export function ChatView({
         if (id) {
           const wasFresh = conversationIdRef.current === null;
           conversationIdRef.current = id;
-          // Sync the URL on the first message of a fresh chat so the page is
-          // refreshable / shareable. router.replace doesn't trigger a re-render.
-          if (wasFresh) {
-            router.replace(`/chat?c=${id}`);
+          // Sync the URL silently so refresh / share works, but DO NOT use
+          // router.replace — that triggers a re-render mid-stream, which
+          // changes useChat's `id` prop and kills the in-flight response.
+          // window.history.replaceState bypasses Next.js routing entirely.
+          if (wasFresh && typeof window !== "undefined") {
+            window.history.replaceState({}, "", `/chat?c=${id}`);
           }
         }
         return res;
