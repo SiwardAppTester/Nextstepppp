@@ -43,17 +43,17 @@ export function TaskRow({
         task.status === "done" && "opacity-60"
       )}
     >
-      <button
+      <span
         className={cn(
           "mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border transition-all",
           task.status === "done"
-            ? "border-[var(--color-success)] bg-[hsl(155_60%_15%_/_0.6)]"
-            : "border-[var(--color-border-strong)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]"
+            ? "border-[var(--color-success)] bg-[var(--color-success-bg)]"
+            : "border-[var(--color-border-strong)] group-hover:border-[var(--color-accent)] group-hover:bg-[var(--color-accent-soft)]"
         )}
         title={status.label}
       >
         <Icon className={cn("h-3 w-3", status.color)} strokeWidth={2.5} />
-      </button>
+      </span>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-3">
