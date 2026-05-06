@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowUp, Mic, Plus } from "lucide-react";
+import { ArrowUp, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function ChatComposer({
@@ -15,7 +14,6 @@ export function ChatComposer({
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -68,15 +66,6 @@ export function ChatComposer({
                 title="Attach (coming soon)"
               >
                 <Plus className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/voice")}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] transition-colors"
-                title="Talk to the Coach (voice mode)"
-                aria-label="Open voice mode"
-              >
-                <Mic className="h-4 w-4" />
               </button>
             </div>
 

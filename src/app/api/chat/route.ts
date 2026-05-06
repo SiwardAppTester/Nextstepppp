@@ -10,12 +10,10 @@ import { createClient } from "@/lib/supabase/server";
 import { buildCoachTools } from "@/lib/coach/tools";
 import { buildSystemPrompt } from "@/lib/coach/system-prompt";
 
+// The Coach uses adaptive thinking on Sonnet 4.6 for non-trivial reasoning.
 // Tool-use loop is bounded at 8 steps to prevent runaway loops.
 const MAX_STEPS = 8;
-// Default: Sonnet for typed chat (better reasoning, deeper context).
-const MODEL_DEFAULT = "claude-sonnet-4-6";
-// Voice mode: Haiku is ~3-5x faster + thinking off — voice replies feel snappy.
-const MODEL_VOICE = "claude-haiku-4-5";
+const MODEL = "claude-sonnet-4-6";
 
 export const maxDuration = 60;
 
@@ -27,10 +25,7 @@ export async function POST(req: NextRequest) {
   const body: {
     messages: UIMessage[];
     conversationId?: string;
-    voice?: boolean;
   } = await req.json();
-
-  const isVoice = body.voice === true;
 
   const messages = body.messages ?? [];
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
@@ -59,17 +54,15 @@ export async function POST(req: NextRequest) {
   const tools = buildCoachTools(supabase, user.id);
 
   const result = streamText({
-    model: anthropic(isVoice ? MODEL_VOICE : MODEL_DEFAULT),
-    system: isVoice
-      ? system + "\n\nThis is a voice conversation. Keep replies SHORT and conversational — 1-2 sentences max unless the user explicitly asks for detail. No markdown, no lists, no headers. Speak the way you'd talk on the phone."
-      : system,
+    model: anthropic(MODEL),
+    system,
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(MAX_STEPS),
     providerOptions: {
       anthropic: {
-        // Voice: thinking off → snappy replies. Typed: adaptive thinking → deeper reasoning.
-        thinking: isVoice ? { type: "disabled" } : { type: "adaptive" },
+        // Adaptive thinking on Sonnet 4.6 — Claude decides when/how much to think.
+        thinking: { type: "adaptive" },
       },
     },
     onFinish: async ({ text, toolCalls, toolResults }) => {
