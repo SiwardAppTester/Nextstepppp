@@ -18,7 +18,6 @@ import {
   LogOut,
   type LucideIcon,
 } from "lucide-react";
-import { BrandMark } from "./brand-mark";
 import { cn } from "@/lib/utils";
 import type { Category } from "@/lib/types";
 
@@ -71,34 +70,26 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
 
   return (
     <aside className="app-sidebar flex h-dvh shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-bg-elevated)]/80 backdrop-blur-xl">
-      <div className="flex h-14 items-center justify-between gap-2.5 px-3 border-b border-[var(--color-border)]">
-        <div className="flex items-center gap-2.5 min-w-0 px-2">
-          <BrandMark size="sm" />
-          <div className="flex flex-col leading-tight min-w-0 sidebar-only-expanded">
-            <span className="text-[13px] font-semibold tracking-tight truncate">Nextsteppp</span>
-            <span className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] truncate">
-              Coach · v0.1
-            </span>
-          </div>
-        </div>
+      <div className="flex h-14 items-center px-3 border-b border-[var(--color-border)]">
+        {/* Expanded: collapse button right-aligned */}
         <button
           onClick={toggleSidebar}
           title="Collapse sidebar (⌘B)"
           aria-label="Collapse sidebar"
-          className="sidebar-only-expanded flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
+          className="sidebar-only-expanded ml-auto flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
         >
           <PanelLeftClose className="h-3.5 w-3.5" strokeWidth={2} />
         </button>
+        {/* Collapsed: expand button centered */}
+        <button
+          onClick={toggleSidebar}
+          title="Expand sidebar (⌘B)"
+          aria-label="Expand sidebar"
+          className="sidebar-only-collapsed mx-auto h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
+        >
+          <PanelLeftOpen className="h-3.5 w-3.5" strokeWidth={2} />
+        </button>
       </div>
-
-      <button
-        onClick={toggleSidebar}
-        title="Expand sidebar (⌘B)"
-        aria-label="Expand sidebar"
-        className="sidebar-only-collapsed mx-auto mt-2 flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
-      >
-        <PanelLeftOpen className="h-3.5 w-3.5" strokeWidth={2} />
-      </button>
 
       <nav className="flex flex-col gap-0.5 p-3">
         {nav.map((item) => {

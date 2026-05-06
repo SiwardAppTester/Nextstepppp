@@ -1,16 +1,14 @@
 "use client";
 
 import { format, isToday, isTomorrow, isPast } from "date-fns";
-import { Check, Circle, Loader2, Ban, Calendar, AlarmClock } from "lucide-react";
+import { Check, Circle, Calendar, AlarmClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task, Category } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 
 const statusConfig = {
   todo: { Icon: Circle, color: "text-[var(--color-text-subtle)]", label: "Todo" },
-  doing: { Icon: Loader2, color: "text-[var(--color-accent)] animate-spin-slow", label: "Doing" },
   done: { Icon: Check, color: "text-[var(--color-success)]", label: "Done" },
-  blocked: { Icon: Ban, color: "text-[var(--color-warning)]", label: "Blocked" },
 } as const;
 
 function formatDate(iso: string) {
@@ -30,7 +28,8 @@ export function TaskRow({
   const cat = task.category_id
     ? categories.find((c) => c.id === task.category_id)
     : undefined;
-  const status = statusConfig[task.status];
+  // Fallback to "todo" if a row is somehow stored with a legacy status (doing/blocked).
+  const status = statusConfig[task.status] ?? statusConfig.todo;
   const Icon = status.Icon;
   const overdue =
     task.due_date && task.status !== "done" && isPast(new Date(task.due_date));

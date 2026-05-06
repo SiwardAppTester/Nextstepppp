@@ -38,6 +38,14 @@
   --color-warning: hsl(38 95% 62%);
   --color-danger: hsl(0 72% 62%);
 
+  /* Status badge backgrounds + borders. Dark-mode defaults; light-mode block overrides. */
+  --color-success-bg: hsl(155 60% 15% / 0.6);
+  --color-success-border: hsl(155 60% 28%);
+  --color-warning-bg: hsl(38 60% 18% / 0.6);
+  --color-warning-border: hsl(38 60% 30%);
+  --color-danger-bg: hsl(0 60% 18% / 0.6);
+  --color-danger-border: hsl(0 60% 28%);
+
   /* Radii */
   --radius-sm: 6px;
   --radius: 10px;
@@ -125,6 +133,13 @@
   --color-success: hsl(155 60% 35%);
   --color-warning: hsl(35 90% 42%);
   --color-danger: hsl(0 70% 48%);
+
+  --color-success-bg: hsl(155 70% 92%);
+  --color-success-border: hsl(155 50% 72%);
+  --color-warning-bg: hsl(38 95% 92%);
+  --color-warning-border: hsl(38 80% 70%);
+  --color-danger-bg: hsl(0 85% 95%);
+  --color-danger-border: hsl(0 70% 80%);
 
   --shadow-float:
     0 1px 0 0 hsl(0 0% 100% / 0.7) inset,

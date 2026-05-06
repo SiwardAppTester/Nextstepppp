@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "doing" | "done" | "blocked";
+export type TaskStatus = "todo" | "done";
 export type TaskPriority = 1 | 2 | 3 | 4 | 5;
 
 export type Category = {

@@ -81,7 +81,7 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
         "List the user's tasks, filterable by category, status, or due-date window. Use this whenever you need to know what's on the user's plate or before suggesting what to work on.",
       inputSchema: z.object({
         category_id: z.string().nullable().optional(),
-        status: z.enum(["todo", "doing", "done", "blocked"]).optional(),
+        status: z.enum(["todo", "done"]).optional(),
         due_before: z.string().nullable().optional().describe("ISO timestamp."),
         due_after: z.string().nullable().optional().describe("ISO timestamp."),
         limit: z.number().int().min(1).max(50).optional().default(20),
@@ -111,7 +111,7 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
         title: z.string().optional(),
         description: z.string().nullable().optional(),
         category_id: z.string().nullable().optional(),
-        status: z.enum(["todo", "doing", "done", "blocked"]).optional(),
+        status: z.enum(["todo", "done"]).optional(),
         priority: z.number().int().min(1).max(5).optional(),
         due_date: z.string().nullable().optional(),
         scheduled_for: z.string().nullable().optional(),

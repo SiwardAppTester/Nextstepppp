@@ -10,12 +10,9 @@ import { cn } from "@/lib/utils";
 import type { Task, Category, TaskStatus } from "@/lib/types";
 import { createTask, toggleTaskStatus, deleteTask } from "./actions";
 
-const statusFilters: { id: TaskStatus | "all"; label: string }[] = [
-  { id: "all", label: "All" },
+const statusFilters: { id: TaskStatus; label: string }[] = [
   { id: "todo", label: "Todo" },
-  { id: "doing", label: "Doing" },
   { id: "done", label: "Done" },
-  { id: "blocked", label: "Blocked" },
 ];
 
 type Props = {
@@ -25,14 +22,14 @@ type Props = {
 };
 
 export function TasksView({ initialTasks, categories, initialCategoryFilter }: Props) {
-  const [activeStatus, setActiveStatus] = useState<TaskStatus | "all">("all");
+  const [activeStatus, setActiveStatus] = useState<TaskStatus>("todo");
   const [activeCategory, setActiveCategory] = useState<string>(initialCategoryFilter);
   const [query, setQuery] = useState("");
   const [showNew, setShowNew] = useState(false);
 
   const filtered = useMemo(() => {
     return initialTasks.filter((t) => {
-      if (activeStatus !== "all" && t.status !== activeStatus) return false;
+      if (t.status !== activeStatus) return false;
       if (activeCategory !== "all" && t.category_id !== activeCategory) return false;
       if (query && !t.title.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
@@ -40,7 +37,7 @@ export function TasksView({ initialTasks, categories, initialCategoryFilter }: P
   }, [initialTasks, activeStatus, activeCategory, query]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: initialTasks.length };
+    const c: Record<string, number> = {};
     for (const t of initialTasks) c[t.status] = (c[t.status] ?? 0) + 1;
     return c;
   }, [initialTasks]);

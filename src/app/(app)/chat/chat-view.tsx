@@ -65,8 +65,39 @@ export function ChatView({
 
   return (
     <div className="flex h-full flex-1 overflow-hidden">
-      {/* Conversations rail */}
-      <div className="hidden lg:flex w-[260px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg)]/40 backdrop-blur-sm">
+      {/* Chat content (left) */}
+      <div className="flex flex-1 flex-col min-w-0">
+        <Topbar
+          crumbs={
+            activeConversation
+              ? [{ label: "Coach" }, { label: activeConversation.title ?? "Untitled" }]
+              : [{ label: "Coach" }, { label: "New conversation" }]
+          }
+          right={
+            <Link href="/chat">
+              <Button size="sm" variant="ghost">
+                <Plus className="h-3.5 w-3.5" />
+                New chat
+              </Button>
+            </Link>
+          }
+        />
+
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8">
+          <div className="mx-auto max-w-[760px] space-y-6">
+            {messages.length === 0 && <EmptyState />}
+            {messages.map((m) => (
+              <ChatMessageView key={m.id} message={uiMessageToView(m)} />
+            ))}
+            {thinking && <TypingIndicator />}
+          </div>
+        </div>
+
+        <ChatComposer onSend={handleSend} disabled={thinking} />
+      </div>
+
+      {/* Conversations rail (right side, visually detached from the main app sidebar) */}
+      <div className="hidden lg:flex w-[260px] shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-bg)]/40 backdrop-blur-sm">
         <div className="flex h-14 items-center justify-between border-b border-[var(--color-border)] px-4">
           <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--color-text-muted)]">
             <History className="h-3.5 w-3.5" />
@@ -107,36 +138,6 @@ export function ChatView({
             );
           })}
         </div>
-      </div>
-
-      <div className="flex flex-1 flex-col min-w-0">
-        <Topbar
-          crumbs={
-            activeConversation
-              ? [{ label: "Coach" }, { label: activeConversation.title ?? "Untitled" }]
-              : [{ label: "Coach" }, { label: "New conversation" }]
-          }
-          right={
-            <Link href="/chat">
-              <Button size="sm" variant="ghost">
-                <Plus className="h-3.5 w-3.5" />
-                New chat
-              </Button>
-            </Link>
-          }
-        />
-
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8">
-          <div className="mx-auto max-w-[760px] space-y-6">
-            {messages.length === 0 && <EmptyState />}
-            {messages.map((m) => (
-              <ChatMessageView key={m.id} message={uiMessageToView(m)} />
-            ))}
-            {thinking && <TypingIndicator />}
-          </div>
-        </div>
-
-        <ChatComposer onSend={handleSend} disabled={thinking} />
       </div>
     </div>
   );

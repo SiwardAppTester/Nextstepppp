@@ -11,11 +11,11 @@ const toneClasses: Record<NonNullable<BadgeProps["tone"]>, string> = {
   accent:
     "bg-[var(--color-accent-soft)] text-[var(--color-accent)] border-[var(--color-border-accent)]",
   success:
-    "bg-[hsl(155_60%_15%_/_0.6)] text-[var(--color-success)] border-[hsl(155_60%_28%)]",
+    "bg-[var(--color-success-bg)] text-[var(--color-success)] border-[var(--color-success-border)]",
   warning:
-    "bg-[hsl(38_60%_18%_/_0.6)] text-[var(--color-warning)] border-[hsl(38_60%_30%)]",
+    "bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning-border)]",
   danger:
-    "bg-[hsl(0_60%_18%_/_0.6)] text-[var(--color-danger)] border-[hsl(0_60%_28%)]",
+    "bg-[var(--color-danger-bg)] text-[var(--color-danger)] border-[var(--color-danger-border)]",
 };
 
 export function Badge({ className, tone = "neutral", ...props }: BadgeProps) {
