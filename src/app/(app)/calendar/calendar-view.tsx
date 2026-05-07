@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
   startOfMonth,
   endOfMonth,
   startOfWeek,
   endOfWeek,
+  startOfDay,
   eachDayOfInterval,
   format,
   isSameMonth,
   isToday,
-  isSameDay,
   addMonths,
   subMonths,
 } from "date-fns";
@@ -18,30 +18,16 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Task, Category } from "@/lib/types";
-import { rescheduleTask } from "../tasks/actions";
+import type { Category, CalendarEvent } from "@/lib/types";
 
 export function CalendarView({
-  tasks,
+  events,
   categories,
 }: {
-  tasks: Task[];
+  events: CalendarEvent[];
   categories: Category[];
 }) {
   const [cursor, setCursor] = useState(new Date());
-  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
-  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function onDrop(targetDay: Date) {
-    if (!draggingTaskId) return;
-    const id = draggingTaskId;
-    setDraggingTaskId(null);
-    setDragOverDate(null);
-    startTransition(async () => {
-      await rescheduleTask(id, targetDay.toISOString());
-    });
-  }
 
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
@@ -49,17 +35,27 @@ export function CalendarView({
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
-  function tasksOn(d: Date) {
-    return tasks.filter((t) => {
-      const when = t.scheduled_for ?? t.due_date;
-      if (!when) return false;
-      const dt = new Date(when);
-      return (
-        dt.getFullYear() === d.getFullYear() &&
-        dt.getMonth() === d.getMonth() &&
-        dt.getDate() === d.getDate()
-      );
-    });
+  function sameDay(a: Date, b: Date) {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
+
+  // Multi-day events appear on every day from start_at's day through end_at's
+  // day (inclusive). Events without end_at are single-day.
+  function eventCoversDay(ev: CalendarEvent, d: Date): boolean {
+    const startMs = startOfDay(new Date(ev.start_at)).getTime();
+    const endMs = ev.end_at ? startOfDay(new Date(ev.end_at)).getTime() : startMs;
+    const target = startOfDay(d).getTime();
+    return target >= startMs && target <= endMs;
+  }
+
+  function eventsOn(d: Date): CalendarEvent[] {
+    return events
+      .filter((e) => eventCoversDay(e, d))
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
   }
 
   function categoryById(id: string | null) {
@@ -106,30 +102,13 @@ export function CalendarView({
             {days.map((day, idx) => {
               const inMonth = isSameMonth(day, cursor);
               const today = isToday(day);
-              const ts = tasksOn(day);
-              const dayKey = day.toISOString().slice(0, 10);
-              const isDragOver = dragOverDate === dayKey;
+              const dayEvents = eventsOn(day);
               return (
                 <div
                   key={idx}
-                  onDragOver={(e) => {
-                    if (!draggingTaskId) return;
-                    e.preventDefault();
-                    if (dragOverDate !== dayKey) setDragOverDate(dayKey);
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverDate === dayKey) setDragOverDate(null);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    onDrop(day);
-                  }}
                   className={cn(
-                    "relative border-b border-r border-[var(--color-border)] p-2 text-[12px] transition-colors",
-                    !isDragOver && "hover:bg-[var(--color-surface-hover)]",
-                    isDragOver && "bg-[var(--color-accent-soft)] ring-1 ring-inset ring-[var(--color-border-accent)]",
+                    "relative border-b border-r border-[var(--color-border)] p-2 text-[12px] transition-colors hover:bg-[var(--color-surface-hover)]",
                     !inMonth && "opacity-40",
-                    pending && "pointer-events-none",
                     (idx + 1) % 7 === 0 && "border-r-0",
                     idx >= days.length - 7 && "border-b-0"
                   )}
@@ -147,40 +126,38 @@ export function CalendarView({
                     </span>
                   </div>
                   <div className="space-y-1">
-                    {ts.slice(0, 3).map((t) => {
-                      const cat = categoryById(t.category_id);
-                      const isDragging = draggingTaskId === t.id;
+                    {dayEvents.slice(0, 3).map((ev) => {
+                      const cat = categoryById(ev.category_id);
+                      const dotColor = cat?.color ?? "var(--color-text-subtle)";
+                      const isStartDay = sameDay(new Date(ev.start_at), day);
+                      const time =
+                        isStartDay && !ev.all_day
+                          ? format(new Date(ev.start_at), "HH:mm")
+                          : null;
                       return (
                         <div
-                          key={t.id}
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggingTaskId(t.id);
-                            e.dataTransfer.effectAllowed = "move";
-                            e.dataTransfer.setData("text/plain", t.id);
-                          }}
-                          onDragEnd={() => {
-                            setDraggingTaskId(null);
-                            setDragOverDate(null);
-                          }}
-                          className={cn(
-                            "truncate rounded-[6px] border px-1.5 py-1 text-[10.5px] font-medium cursor-grab active:cursor-grabbing transition-opacity",
-                            isDragging && "opacity-40"
-                          )}
-                          style={{
-                            backgroundColor: cat ? `${cat.color}18` : "var(--color-surface-2)",
-                            borderColor: cat ? `${cat.color}55` : "var(--color-border)",
-                            color: cat ? cat.color : "var(--color-text)",
-                          }}
-                          title={`${t.title} — drag to reschedule`}
+                          key={ev.id}
+                          className="flex items-center gap-1.5 truncate rounded-[5px] bg-[var(--color-surface-2)] px-1.5 py-1 text-[11px] transition-colors hover:bg-[var(--color-surface-hover)]"
+                          title={`${ev.title}${ev.location ? ` · ${ev.location}` : ""}`}
                         >
-                          {t.title}
+                          <span
+                            className="h-1.5 w-1.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: dotColor }}
+                          />
+                          {time && (
+                            <span className="shrink-0 tabular-nums text-[10.5px] text-[var(--color-text-subtle)]">
+                              {time}
+                            </span>
+                          )}
+                          <span className="truncate font-medium text-[var(--color-text)]">
+                            {ev.title}
+                          </span>
                         </div>
                       );
                     })}
-                    {ts.length > 3 && (
-                      <div className="text-[10px] text-[var(--color-text-subtle)] px-1">
-                        + {ts.length - 3} more
+                    {dayEvents.length > 3 && (
+                      <div className="px-1 text-[10px] text-[var(--color-text-subtle)]">
+                        + {dayEvents.length - 3} more
                       </div>
                     )}
                   </div>
@@ -188,10 +165,6 @@ export function CalendarView({
               );
             })}
           </div>
-        </div>
-
-        <div className="mt-3 text-center text-[11px] text-[var(--color-text-subtle)]">
-          Drag any task chip to a different day to reschedule. Time-of-day is preserved.
         </div>
       </div>
     </div>

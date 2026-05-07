@@ -7,13 +7,14 @@ import {
   type UIMessage,
 } from "ai";
 import { createClient } from "@/lib/supabase/server";
-import { buildCoachTools } from "@/lib/coach/tools";
-import { buildSystemPrompt } from "@/lib/coach/system-prompt";
+import { AI_BOOST_SYSTEM_PROMPT } from "@/lib/ai-boost/system-prompt";
+import { buildUserContextBlock } from "@/lib/ai-boost/dynamic-context";
+import { buildAiBoostTools } from "@/lib/ai-boost/tools";
 
-// The Coach uses adaptive thinking on Sonnet 4.6 for non-trivial reasoning.
-// Tool-use loop is bounded at 8 steps to prevent runaway loops.
-const MAX_STEPS = 8;
-const MODEL = "claude-sonnet-4-6";
+const MODEL = "claude-haiku-4-5-20251001";
+// Cap the tool-use loop. Spec §7 recommends ~5; lower would clip multi-tool
+// turns ("plan → list → create"), higher risks runaway loops.
+const MAX_STEPS = 5;
 
 export const maxDuration = 60;
 
@@ -31,8 +32,6 @@ export async function POST(req: NextRequest) {
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const lastUserText = lastUser ? extractText(lastUser) : "";
 
-  // Resolve / create the conversation up front so we have an id for both
-  // user-message persistence and the onFinish save.
   const { conversationId, created } = await resolveConversation(
     supabase,
     user.id,
@@ -40,7 +39,7 @@ export async function POST(req: NextRequest) {
     lastUserText
   );
 
-  // Persist the user's new message before streaming.
+  // Persist the user's raw message (unwrapped) before streaming.
   if (lastUser && lastUserText) {
     await supabase.from("messages").insert({
       conversation_id: conversationId,
@@ -49,24 +48,29 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Build the system prompt fresh each turn (time, tasks, memories all dynamic).
-  const system = await buildSystemPrompt(supabase, user.id, lastUserText);
-  const tools = buildCoachTools(supabase, user.id);
+  // Build per-turn dynamic context and wrap the LATEST user message with it.
+  // Older user messages stay unwrapped — only the current turn needs fresh state.
+  const contextBlock = await buildUserContextBlock(supabase, user.id);
+  const wrappedMessages = wrapLatestUserMessage(messages, contextBlock);
+
+  // Read user preference for auto-confirm so the bot can skip "should I…" pings.
+  const { data: prefs } = await supabase
+    .from("user_settings")
+    .select("auto_confirm")
+    .maybeSingle();
+  const autoConfirm = prefs?.auto_confirm ?? false;
+
+  const systemPrompt = autoConfirm
+    ? `${AI_BOOST_SYSTEM_PROMPT}\n\n# Auto-confirm mode\n\nThe user has turned ON auto-confirm. Skip "should I add this?" or "want me to create…?" check-ins for routine captures. When the user says "add X", "schedule Y", "I have a goal Z", just call the tool and confirm what you did in one short sentence. Still ask only when (a) routing is genuinely ambiguous (which category?), (b) the action is destructive (delete), or (c) the input is too vague to act on. Planning mode still proposes options before acting — auto-confirm doesn't make you guess what the user wants.`
+    : AI_BOOST_SYSTEM_PROMPT;
 
   const result = streamText({
     model: anthropic(MODEL),
-    system,
-    messages: await convertToModelMessages(messages),
-    tools,
+    system: systemPrompt,
+    messages: await convertToModelMessages(wrappedMessages),
+    tools: buildAiBoostTools(supabase, user.id),
     stopWhen: stepCountIs(MAX_STEPS),
-    providerOptions: {
-      anthropic: {
-        // Adaptive thinking on Sonnet 4.6 — Claude decides when/how much to think.
-        thinking: { type: "adaptive" },
-      },
-    },
     onFinish: async ({ text, toolCalls, toolResults }) => {
-      // Persist the assistant's complete message after the stream wraps up.
       const content: Record<string, unknown> = { text };
       if (toolCalls?.length) {
         content.tool_calls = toolCalls.map((c) => ({
@@ -90,7 +94,6 @@ export async function POST(req: NextRequest) {
         .update({ last_message_at: new Date().toISOString() })
         .eq("id", conversationId);
 
-      // Auto-title fresh conversations from the user's first message (cheap, deterministic).
       if (created && lastUserText) {
         const title = lastUserText.slice(0, 60).replace(/\s+/g, " ").trim();
         if (title)
@@ -128,10 +131,39 @@ async function resolveConversation(
 }
 
 function extractText(m: UIMessage): string {
-  // UIMessage parts can be text/tool/etc — concat the text parts.
   if (!Array.isArray(m.parts)) return "";
   return m.parts
     .map((p) => (p.type === "text" ? p.text : ""))
     .join("")
     .trim();
+}
+
+/**
+ * Wrap the latest user message with the per-turn <user_context> block, per
+ * spec §5. Earlier messages are passed through untouched. The DB row stored
+ * for the user message keeps the original text — only what Claude sees on
+ * this turn includes the wrapper.
+ */
+function wrapLatestUserMessage(
+  messages: UIMessage[],
+  contextBlock: string
+): UIMessage[] {
+  const out = [...messages];
+  let lastIdx = -1;
+  for (let i = out.length - 1; i >= 0; i--) {
+    if (out[i].role === "user") {
+      lastIdx = i;
+      break;
+    }
+  }
+  if (lastIdx === -1) return out;
+
+  const original = out[lastIdx];
+  const text = extractText(original);
+  const wrapped = `${contextBlock}\n\n<user_message>\n${text}\n</user_message>`;
+  out[lastIdx] = {
+    ...original,
+    parts: [{ type: "text", text: wrapped }],
+  };
+  return out;
 }

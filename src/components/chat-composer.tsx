@@ -34,9 +34,9 @@ export function ChatComposer({
       <div className="mx-auto max-w-[760px]">
         <div
           className={cn(
-            "relative rounded-2xl border bg-[var(--color-surface)] transition-all",
+            "relative rounded-2xl border bg-[var(--color-surface)] transition-colors duration-200",
             focused
-              ? "border-[var(--color-border-accent)] shadow-[var(--shadow-composer-focus)]"
+              ? "border-[var(--color-border-strong)] shadow-[var(--shadow-composer-focus)]"
               : "border-[var(--color-border)] shadow-[var(--shadow-float)]"
           )}
         >
@@ -55,7 +55,7 @@ export function ChatComposer({
             placeholder="Tell the Coach what's going on…"
             rows={1}
             disabled={disabled}
-            className="w-full resize-none bg-transparent px-4 pt-3.5 pb-12 text-[14px] leading-6 text-[var(--color-text)] placeholder:text-[var(--color-text-subtle)] focus:outline-none"
+            className="w-full resize-none bg-transparent px-4 pt-3.5 pb-12 text-[14px] leading-6 text-[var(--color-text)] placeholder:text-[var(--color-text-subtle)] outline-none focus:outline-none focus-visible:outline-none"
           />
 
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between gap-2 px-2.5 pb-2.5">

@@ -8,6 +8,7 @@ import {
   Database,
   User,
   Palette,
+  Landmark,
   User as UserIcon,
   Home as HomeIcon,
   Briefcase,
@@ -23,8 +24,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import type { Category } from "@/lib/types";
-import { updateCategoryContext, sendTestReminder, updateMemory, deleteMemory } from "./actions";
+import type { BankAccount, Category, GmailAccount } from "@/lib/types";
+import { formatIban } from "@/lib/finance/iban";
+import { GmailSection } from "./gmail-section";
+import {
+  updateCategoryContext,
+  sendTestReminder,
+  updateMemory,
+  deleteMemory,
+  setAutoConfirm,
+  addBankAccount,
+  updateBankAccount,
+  deleteBankAccount,
+} from "./actions";
 
 export type Memory = {
   id: string;
@@ -46,10 +58,16 @@ export function SettingsView({
   categories,
   memories,
   userEmail,
+  autoConfirm,
+  bankAccounts,
+  gmailAccounts,
 }: {
   categories: Category[];
   memories: Memory[];
   userEmail: string;
+  autoConfirm: boolean;
+  bankAccounts: BankAccount[];
+  gmailAccounts: GmailAccount[];
 }) {
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
@@ -70,6 +88,22 @@ export function SettingsView({
               <Field label="Timezone" value="Europe/Amsterdam" />
               <Field label="Owner email" value={userEmail} hint="Only this email can sign in." />
               <Field label="Coach tone" value="Neutral" hint="Casual, direct, no lectures." />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Brain className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+                <CardTitle>Coach behavior</CardTitle>
+              </div>
+              <CardDescription>
+                When auto-confirm is on, the Coach acts immediately on captures (tasks, events,
+                goals, context updates) and just tells you what it did. When off, it confirms first.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AutoConfirmToggle initial={autoConfirm} />
             </CardContent>
           </Card>
 
@@ -101,6 +135,10 @@ export function SettingsView({
               ))}
             </CardContent>
           </Card>
+
+          <BankAccountsCard accounts={bankAccounts} />
+
+          <GmailSection accounts={gmailAccounts} />
 
           <NotificationsCard />
 
@@ -456,5 +494,274 @@ function NotificationsCard() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function BankAccountsCard({ accounts }: { accounts: BankAccount[] }) {
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Landmark className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+              <CardTitle>Bank accounts</CardTitle>
+            </div>
+            <CardDescription className="mt-1">
+              IBANs you upload statements from. The description helps the AI understand each account.
+            </CardDescription>
+          </div>
+          <Button size="sm" variant="secondary" onClick={() => setAdding((v) => !v)}>
+            {adding ? "Close" : "Add account"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {adding && <AddBankAccountForm onDone={() => setAdding(false)} />}
+
+        {accounts.length === 0 && !adding && (
+          <div className="rounded-[10px] border border-dashed border-[var(--color-border)] bg-[var(--color-surface-2)] p-6 text-center text-[12.5px] text-[var(--color-text-muted)]">
+            No bank accounts yet. Add an IBAN to start tracking finances.
+          </div>
+        )}
+
+        {accounts.map((acc) => (
+          <BankAccountRow key={acc.id} account={acc} />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AddBankAccountForm({ onDone }: { onDone: () => void }) {
+  const [iban, setIban] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [description, setDescription] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const r = await addBankAccount({ iban, nickname, description });
+      if (!r.ok) {
+        setError(r.error ?? "Couldn't add account.");
+        return;
+      }
+      onDone();
+    });
+  }
+
+  return (
+    <div className="rounded-[10px] border border-[var(--color-border-accent)] bg-[var(--color-surface-2)] p-3 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+            IBAN
+          </div>
+          <Input
+            value={iban}
+            onChange={(e) => setIban(e.target.value)}
+            placeholder="NL95 INGB 0674 8143 12"
+            autoFocus
+          />
+        </div>
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+            Nickname
+          </div>
+          <Input
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="Daily ING"
+          />
+        </div>
+      </div>
+      <div>
+        <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+          Description
+        </div>
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What's this account for? E.g. 'Personal daily spending' or 'Rental income from my apartment'."
+          rows={2}
+        />
+      </div>
+      {error && <div className="text-[12px] text-[var(--color-danger)]">{error}</div>}
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="secondary" onClick={onDone} disabled={pending}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={submit}
+          disabled={pending || !iban.trim() || !nickname.trim()}
+        >
+          {pending ? "Saving…" : "Add account"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function BankAccountRow({ account }: { account: BankAccount }) {
+  const [editing, setEditing] = useState(false);
+  const [nickname, setNickname] = useState(account.nickname);
+  const [description, setDescription] = useState(account.description ?? "");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function save() {
+    setError(null);
+    startTransition(async () => {
+      const r = await updateBankAccount(account.id, { nickname, description });
+      if (!r.ok) {
+        setError(r.error ?? "Couldn't save changes.");
+        return;
+      }
+      setEditing(false);
+    });
+  }
+
+  function remove() {
+    if (
+      !confirm(
+        `Delete "${account.nickname}"? Any uploaded statements and transactions for this account go with it.`
+      )
+    )
+      return;
+    startTransition(async () => {
+      const r = await deleteBankAccount(account.id);
+      if (!r.ok) setError(r.error ?? "Couldn't delete.");
+    });
+  }
+
+  function cancelEdit() {
+    setNickname(account.nickname);
+    setDescription(account.description ?? "");
+    setEditing(false);
+    setError(null);
+  }
+
+  return (
+    <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] hover:border-[var(--color-border-strong)] transition-colors">
+      <div className="flex items-start gap-3 px-3 py-2.5">
+        <span
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border"
+          style={{
+            backgroundColor: `${account.color}18`,
+            borderColor: `${account.color}55`,
+            color: account.color,
+            boxShadow: `0 0 14px -4px ${account.color}55`,
+          }}
+        >
+          <Landmark className="h-3.5 w-3.5" strokeWidth={2.4} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[13px] font-medium">{account.nickname}</span>
+            {account.bank_name && <Badge tone="neutral">{account.bank_name}</Badge>}
+          </div>
+          <div className="text-[11px] font-mono text-[var(--color-text-muted)] mt-0.5">
+            {formatIban(account.iban)}
+          </div>
+          {!editing && account.description && (
+            <div className="text-[11.5px] text-[var(--color-text-muted)] mt-1">
+              {account.description}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)}>
+            <Pencil className="h-3 w-3" />
+            {editing ? "Cancel" : "Edit"}
+          </Button>
+          {!editing && (
+            <Button size="sm" variant="ghost" onClick={remove} disabled={pending}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+      {editing && (
+        <div className="border-t border-[var(--color-border)] p-3 space-y-3">
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+              Nickname
+            </div>
+            <Input value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          </div>
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+              Description
+            </div>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              placeholder="What's this account for?"
+            />
+          </div>
+          {error && <div className="text-[12px] text-[var(--color-danger)]">{error}</div>}
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="secondary" onClick={cancelEdit} disabled={pending}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" onClick={save} disabled={pending}>
+              {pending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AutoConfirmToggle({ initial }: { initial: boolean }) {
+  const [on, setOn] = useState(initial);
+  const [pending, startTransition] = useTransition();
+
+  function toggle() {
+    const next = !on;
+    setOn(next); // optimistic
+    startTransition(async () => {
+      const res = await setAutoConfirm(next);
+      if (!res.ok) setOn(!next); // revert on failure
+    });
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium">Auto-confirm</div>
+        <div className="text-[11.5px] text-[var(--color-text-muted)] mt-0.5">
+          {on
+            ? "Coach acts immediately on captures and tells you what it did."
+            : "Coach asks before creating or changing things."}
+        </div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={toggle}
+        disabled={pending}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors ${
+          on
+            ? "bg-[var(--color-accent)] border-[var(--color-accent)]"
+            : "bg-[var(--color-surface-2)] border-[var(--color-border)]"
+        } ${pending ? "opacity-60" : ""}`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+            on ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </div>
   );
 }

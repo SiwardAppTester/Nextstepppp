@@ -1,22 +1,13 @@
 "use client";
 
-import { format, isToday, isTomorrow, isPast } from "date-fns";
-import { Check, Circle, Calendar, AlarmClock } from "lucide-react";
+import { Check, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task, Category } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 
 const statusConfig = {
   todo: { Icon: Circle, color: "text-[var(--color-text-subtle)]", label: "Todo" },
   done: { Icon: Check, color: "text-[var(--color-success)]", label: "Done" },
 } as const;
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  if (isToday(d)) return `Today · ${format(d, "HH:mm")}`;
-  if (isTomorrow(d)) return `Tomorrow · ${format(d, "HH:mm")}`;
-  return format(d, "MMM d · HH:mm");
-}
 
 export function TaskRow({
   task,
@@ -31,8 +22,6 @@ export function TaskRow({
   // Fallback to "todo" if a row is somehow stored with a legacy status (doing/blocked).
   const status = statusConfig[task.status] ?? statusConfig.todo;
   const Icon = status.Icon;
-  const overdue =
-    task.due_date && task.status !== "done" && isPast(new Date(task.due_date));
 
   return (
     <div
@@ -75,8 +64,8 @@ export function TaskRow({
 
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {cat && (
+        {cat && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <span
               className="inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium tracking-wide"
               style={{
@@ -91,33 +80,8 @@ export function TaskRow({
               />
               {cat.name}
             </span>
-          )}
-
-          {task.due_date && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 text-[11px]",
-                overdue ? "text-[var(--color-danger)]" : "text-[var(--color-text-muted)]"
-              )}
-            >
-              <Calendar className="h-3 w-3" />
-              Due {formatDate(task.due_date)}
-            </span>
-          )}
-
-          {task.scheduled_for && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
-              <AlarmClock className="h-3 w-3" />
-              {formatDate(task.scheduled_for)}
-            </span>
-          )}
-
-          {task.recurring && (
-            <Badge tone="neutral" className="!py-0">
-              {task.recurring}
-            </Badge>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ChatView } from "./chat-view";
 import type { UIMessage } from "ai";
@@ -5,11 +6,30 @@ import type { UIMessage } from "ai";
 export default async function ChatPage({
   searchParams,
 }: {
-  searchParams: Promise<{ c?: string }>;
+  searchParams: Promise<{ c?: string; new?: string }>;
 }) {
   const supabase = await createClient();
   const params = await searchParams;
-  const conversationId = params.c ?? null;
+  const requestedId = params.c ?? null;
+  // Any non-empty `new` value (timestamp from the New-chat button) forces a
+  // fresh chat. Each click uses a different value so React remounts ChatView.
+  const forceNew = !!params.new;
+  const newKey = params.new ?? null;
+
+  // Default behavior when no conversation is specified: resume the most recent
+  // chat so navigating Chat → Tasks → Chat returns where you were. The "+ New
+  // chat" buttons pass ?new=1 to opt out and force a blank conversation.
+  if (!requestedId && !forceNew) {
+    const { data: latest } = await supabase
+      .from("conversations")
+      .select("id")
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latest?.id) redirect(`/chat?c=${latest.id}`);
+  }
+
+  const conversationId = requestedId;
 
   // Pull the conversations rail in parallel with this conversation's messages.
   const [conversationsRes, messagesRes] = await Promise.all([
@@ -33,6 +53,7 @@ export default async function ChatPage({
 
   return (
     <ChatView
+      key={conversationId ?? `new-${newKey ?? "default"}`}
       conversations={conversationsRes.data ?? []}
       activeConversationId={conversationId}
       initialMessages={initialMessages}

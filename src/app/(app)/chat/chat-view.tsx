@@ -93,16 +93,18 @@ export function ChatView({
               : [{ label: "Coach" }, { label: "New conversation" }]
           }
           right={
-            <Link href="/chat">
-              <Button size="sm" variant="ghost">
-                <Plus className="h-3.5 w-3.5" />
-                New chat
-              </Button>
-            </Link>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => router.push(`/chat?new=${Date.now()}`)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New chat
+            </Button>
           }
         />
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8 no-scrollbar">
           <div className="mx-auto max-w-[760px] space-y-6">
             {messages.length === 0 && <EmptyState />}
             {messages.map((m) => (
@@ -122,13 +124,16 @@ export function ChatView({
             <History className="h-3.5 w-3.5" />
             Conversations
           </div>
-          <Link href="/chat" title="New chat">
-            <Button size="icon-sm" variant="ghost">
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            title="New chat"
+            onClick={() => router.push(`/chat?new=${Date.now()}`)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        <div className="flex-1 overflow-y-auto p-2 space-y-0.5 no-scrollbar">
           {conversations.length === 0 && (
             <div className="px-2 py-8 text-center text-[11.5px] text-[var(--color-text-subtle)]">
               No conversations yet. Send a message to start.

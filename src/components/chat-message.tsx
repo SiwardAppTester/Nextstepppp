@@ -24,7 +24,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[78%] rounded-2xl rounded-br-md border border-[var(--color-border-accent)] bg-[var(--color-accent-soft)] px-4 py-2.5 text-[14px] leading-relaxed text-[var(--color-text)] shadow-[0_8px_24px_-12px_var(--color-accent-glow)]">
+        <div className="max-w-[78%] rounded-2xl rounded-br-md border border-[var(--color-border-accent)] bg-[var(--color-accent-soft)] px-4 py-2.5 text-[14px] leading-relaxed text-[var(--color-text)] shadow-[0_8px_24px_-12px_var(--color-accent-glow)] whitespace-pre-wrap [overflow-wrap:anywhere]">
           {message.text}
         </div>
       </div>
@@ -73,7 +73,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
 function FormattedText({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return (
-    <p className="whitespace-pre-wrap">
+    <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
       {parts.map((part, i) =>
         part.startsWith("**") && part.endsWith("**") ? (
           <strong key={i} className="font-semibold text-[var(--color-text)]">

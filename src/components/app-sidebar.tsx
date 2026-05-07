@@ -7,6 +7,8 @@ import {
   MessageSquare,
   ListTodo,
   Calendar,
+  Euro,
+  Heart,
   Settings,
   Briefcase,
   Home as HomeIcon,
@@ -19,13 +21,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Category } from "@/lib/types";
+import type { Category, GmailAccount } from "@/lib/types";
 import { ThemeToggle } from "./theme-toggle";
 
 const nav: { href: string; label: string; icon: LucideIcon; hint?: string }[] = [
   { href: "/chat", label: "Chat", icon: MessageSquare, hint: "Coach" },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
   { href: "/calendar", label: "Calendar", icon: Calendar },
+  { href: "/finance", label: "Finance", icon: Euro },
+  { href: "/wishlist", label: "Wishlist", icon: Heart },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -52,10 +56,11 @@ function toggleSidebar() {
 type Props = {
   categories: Category[];
   taskCountByCat: Record<string, number>;
+  gmailAccounts: GmailAccount[];
   user: { email: string; initial: string };
 };
 
-export function AppSidebar({ categories, taskCountByCat, user }: Props) {
+export function AppSidebar({ categories, taskCountByCat, gmailAccounts, user }: Props) {
   const pathname = usePathname();
 
   useEffect(() => {
@@ -108,9 +113,6 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
                   : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
               )}
             >
-              {active && (
-                <span className="sidebar-active-rail absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-[var(--color-accent)] shadow-[0_0_10px_var(--color-accent-glow)]" />
-              )}
               <Icon
                 className={cn(
                   "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
@@ -142,12 +144,18 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
           {categories.map((cat) => {
             const Icon = categoryIconMap[cat.icon] ?? User;
             const count = taskCountByCat[cat.id] ?? 0;
+            const active = pathname === `/categories/${cat.id}`;
             return (
               <Link
                 key={cat.id}
-                href={`/tasks?category=${cat.id}`}
+                href={`/categories/${cat.id}`}
                 title={cat.name}
-                className="sidebar-nav-item group flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[12.5px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                className={cn(
+                  "sidebar-nav-item group flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[12.5px] transition-colors",
+                  active
+                    ? "bg-[var(--color-surface-hover)] text-[var(--color-text)]"
+                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                )}
               >
                 <span
                   className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border"
@@ -169,6 +177,48 @@ export function AppSidebar({ categories, taskCountByCat, user }: Props) {
           })}
         </div>
       </div>
+
+      {gmailAccounts.length > 0 && (
+        <div className="px-3 mt-2">
+          <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-subtle)] sidebar-only-expanded">
+            Gmail
+          </div>
+          <div className="flex flex-col gap-0.5">
+            {gmailAccounts.map((acc) => {
+              const hasUnread = acc.unread_count > 0;
+              const domainInitial = (acc.email.split("@")[1]?.[0] ?? "?").toUpperCase();
+              return (
+                <a
+                  key={acc.id}
+                  href={`https://mail.google.com/mail/?authuser=${encodeURIComponent(acc.email)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${acc.email}${hasUnread ? ` — ${acc.unread_count} unread` : ""}`}
+                  className={cn(
+                    "sidebar-nav-item group flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[12.5px] transition-colors",
+                    "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                  )}
+                >
+                  <span className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-[var(--color-border)] bg-[var(--color-surface)] text-[9px] font-semibold text-[var(--color-text-muted)]">
+                    {domainInitial}
+                    {hasUnread && (
+                      <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)] shadow-[0_0_6px_var(--color-accent-glow)]" />
+                    )}
+                  </span>
+                  <span className="sidebar-only-expanded flex-1 text-left truncate">
+                    {acc.email.split("@")[1] ?? acc.email}
+                  </span>
+                  {hasUnread && (
+                    <span className="sidebar-only-expanded text-[10px] tabular-nums font-semibold text-[var(--color-accent)]">
+                      {acc.unread_count}
+                    </span>
+                  )}
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-auto border-t border-[var(--color-border)] p-3">
         {/* Expanded: theme toggle row above user card, left-aligned */}

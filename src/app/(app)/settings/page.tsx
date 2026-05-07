@@ -1,12 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { SettingsView, type Memory } from "./settings-view";
-import type { Category } from "@/lib/types";
+import type { BankAccount, Category, GmailAccount } from "@/lib/types";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ data: categories }, { data: memories }] = await Promise.all([
+  const [
+    { data: categories },
+    { data: memories },
+    { data: prefs },
+    { data: bankAccounts },
+    { data: gmailAccounts },
+  ] = await Promise.all([
     supabase
       .from("categories")
       .select("id, name, color, icon, context")
@@ -16,6 +22,15 @@ export default async function SettingsPage() {
       .select("id, content, importance, category_id, created_at")
       .order("importance", { ascending: false })
       .order("created_at", { ascending: false }),
+    supabase.from("user_settings").select("auto_confirm").maybeSingle(),
+    supabase
+      .from("bank_accounts")
+      .select("id, iban, nickname, description, bank_name, color, currency, created_at")
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("gmail_accounts")
+      .select("id, email, unread_count, last_synced_at, last_sync_error, created_at")
+      .order("created_at", { ascending: true }),
   ]);
 
   return (
@@ -23,6 +38,9 @@ export default async function SettingsPage() {
       categories={(categories ?? []) as Category[]}
       memories={(memories ?? []) as Memory[]}
       userEmail={user?.email ?? ""}
+      autoConfirm={prefs?.auto_confirm ?? false}
+      bankAccounts={(bankAccounts ?? []) as BankAccount[]}
+      gmailAccounts={(gmailAccounts ?? []) as GmailAccount[]}
     />
   );
 }

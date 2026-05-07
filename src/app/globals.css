@@ -79,9 +79,7 @@
     0 0 0 1px hsl(0 0% 100% / 0.28),
     0 0 22px -8px hsl(0 0% 100% / 0.28);
   --shadow-composer-focus:
-    0 0 0 1px hsl(0 0% 100% / 0.22),
-    0 0 36px -10px hsl(0 0% 100% / 0.28),
-    0 24px 60px -20px hsl(225 60% 0% / 0.7);
+    0 6px 22px -8px hsl(0 0% 100% / 0.20);
   --shadow-send-button:
     0 0 0 1px hsl(0 0% 100% / 0.25),
     0 0 18px -4px hsl(0 0% 100% / 0.3);
@@ -162,9 +160,7 @@
     0 0 0 1px hsl(0 0% 0% / 0.32),
     0 0 22px -8px hsl(0 0% 0% / 0.16);
   --shadow-composer-focus:
-    0 0 0 1px hsl(0 0% 0% / 0.28),
-    0 0 36px -10px hsl(0 0% 0% / 0.16),
-    0 24px 60px -20px hsl(225 30% 50% / 0.18);
+    0 6px 22px -8px hsl(0 0% 0% / 0.16);
   --shadow-send-button:
     0 0 0 1px hsl(0 0% 0% / 0.4),
     0 0 18px -4px hsl(0 0% 0% / 0.18);
@@ -249,17 +245,27 @@ body {
   background-clip: padding-box;
 }
 
+/* Hide scrollbar while keeping scroll functionality. Used in places where
+   the visible scrollbar adds visual noise (e.g. the chat message stream). */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old IE / Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, modern Edge */
+}
+
 /* Selection */
 ::selection {
   background: var(--selection-bg);
   color: var(--color-text);
 }
 
-/* Focus rings */
+/* Focus rings — subtle by default. Components that manage their own focus
+   state (e.g. the chat composer) opt out via `focus-visible:outline-none`. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-border-strong);
   outline-offset: 2px;
-  border-radius: 6px;
 }
 
 /* Floating card utility — used everywhere via .float-card */
