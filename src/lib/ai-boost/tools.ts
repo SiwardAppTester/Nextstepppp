@@ -502,5 +502,223 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
         return { ok: true, events: data ?? [] };
       },
     }),
+
+    // =====================================================================
+    // Finance — read-only. Spending/income data lives in `transactions`,
+    // bucketed by `finance_pockets`. Statements upload from /finance.
+    // user_id filtering is explicit (in addition to RLS) so these tools
+    // stay correct when called from the Telegram path with the admin client.
+    // =====================================================================
+
+    list_pockets: tool({
+      description:
+        "List the user's finance pockets (spending/income buckets like 'Groceries', 'Rent income', 'Subscriptions'). Call this before summarize_finances or list_transactions when the user asks about a specific category of spending so you can find the matching pocket id.",
+      inputSchema: z.object({
+        include_archived: z.boolean().optional(),
+      }),
+      execute: async ({ include_archived }) => {
+        let q = supabase
+          .from("finance_pockets")
+          .select("id, name, description, group_name, color, is_archived")
+          .eq("user_id", userId)
+          .order("group_name", { ascending: true, nullsFirst: false })
+          .order("name", { ascending: true });
+        if (!include_archived) q = q.eq("is_archived", false);
+        const { data, error } = await q;
+        if (error) return { ok: false, error: error.message };
+        return { ok: true, pockets: data ?? [] };
+      },
+    }),
+
+    list_bank_accounts: tool({
+      description:
+        "List the user's bank accounts with their currency and most recent balance (from the latest transaction). Use when the user asks 'what's my balance' or wants an overview of their accounts.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const { data: accounts, error } = await supabase
+          .from("bank_accounts")
+          .select("id, nickname, bank_name, iban, currency, color, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: true });
+        if (error) return { ok: false, error: error.message };
+
+        // For each account fetch the most recent transaction's balance_after.
+        // Small N (handful of accounts), so individual queries are fine.
+        const enriched = await Promise.all(
+          (accounts ?? []).map(async (acc) => {
+            const { data: latest } = await supabase
+              .from("transactions")
+              .select("balance_after, txn_date")
+              .eq("user_id", userId)
+              .eq("account_id", acc.id)
+              .order("txn_date", { ascending: false })
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            return {
+              ...acc,
+              latest_balance: latest?.balance_after ?? null,
+              latest_txn_date: latest?.txn_date ?? null,
+            };
+          })
+        );
+        return { ok: true, accounts: enriched };
+      },
+    }),
+
+    summarize_finances: tool({
+      description:
+        "Summarize income / expenses / net for a date range. Optionally group by pocket or pocket group (e.g. 'Bills & utilities'). Use for questions like 'how much did I spend in April', 'what did I spend on subscriptions last month', 'how much income did I have this year'. Dates are ISO YYYY-MM-DD.",
+      inputSchema: z.object({
+        start_date: z.string().describe("Inclusive start, ISO YYYY-MM-DD."),
+        end_date: z.string().describe("Inclusive end, ISO YYYY-MM-DD."),
+        group_by: z
+          .enum(["none", "pocket", "pocket_group"])
+          .optional()
+          .describe("How to break down totals. Default 'none' = totals only."),
+        pocket_id: z.string().optional().describe("Limit to a specific pocket."),
+      }),
+      execute: async ({ start_date, end_date, group_by = "none", pocket_id }) => {
+        let q = supabase
+          .from("transactions")
+          .select(
+            "amount, direction, pocket_id, finance_pockets:pocket_id (name, group_name)"
+          )
+          .eq("user_id", userId)
+          .gte("txn_date", start_date)
+          .lte("txn_date", end_date);
+        if (pocket_id) q = q.eq("pocket_id", pocket_id);
+        const { data, error } = await q;
+        if (error) return { ok: false, error: error.message };
+
+        type Row = {
+          amount: number;
+          direction: "in" | "out";
+          pocket_id: string | null;
+          finance_pockets: { name: string | null; group_name: string | null } | null;
+        };
+        const rows = (data ?? []) as unknown as Row[];
+
+        let total_in = 0;
+        let total_out = 0;
+        const groups = new Map<
+          string,
+          { key: string; total_in: number; total_out: number; txn_count: number }
+        >();
+
+        for (const r of rows) {
+          const amt = Number(r.amount);
+          if (r.direction === "in") total_in += amt;
+          else total_out += Math.abs(amt);
+
+          if (group_by !== "none") {
+            const key =
+              group_by === "pocket"
+                ? r.finance_pockets?.name ?? "(uncategorized)"
+                : r.finance_pockets?.group_name ?? "(uncategorized)";
+            const g =
+              groups.get(key) ?? { key, total_in: 0, total_out: 0, txn_count: 0 };
+            if (r.direction === "in") g.total_in += amt;
+            else g.total_out += Math.abs(amt);
+            g.txn_count += 1;
+            groups.set(key, g);
+          }
+        }
+
+        const round = (n: number) => Math.round(n * 100) / 100;
+        return {
+          ok: true,
+          range: { start_date, end_date },
+          total_in: round(total_in),
+          total_out: round(total_out),
+          net: round(total_in - total_out),
+          txn_count: rows.length,
+          breakdown:
+            group_by === "none"
+              ? null
+              : [...groups.values()]
+                  .map((g) => ({
+                    [group_by === "pocket" ? "pocket" : "group"]: g.key,
+                    total_in: round(g.total_in),
+                    total_out: round(g.total_out),
+                    net: round(g.total_in - g.total_out),
+                    txn_count: g.txn_count,
+                  }))
+                  .sort(
+                    (a, b) =>
+                      Math.abs(b.total_out) + Math.abs(b.total_in) -
+                      (Math.abs(a.total_out) + Math.abs(a.total_in))
+                  ),
+        };
+      },
+    }),
+
+    list_transactions: tool({
+      description:
+        "List individual transactions in a date range, optionally filtered by direction, pocket, or amount. Use for 'show me my biggest expenses', 'what did I buy last week', 'list my recurring subscriptions'. Returns at most `limit` rows (default 20, max 100), sorted newest first.",
+      inputSchema: z.object({
+        start_date: z.string().optional().describe("Inclusive ISO YYYY-MM-DD."),
+        end_date: z.string().optional().describe("Inclusive ISO YYYY-MM-DD."),
+        direction: z
+          .enum(["in", "out"])
+          .optional()
+          .describe("'in' = income, 'out' = expenses. Omit for both."),
+        pocket_id: z.string().optional(),
+        min_amount: z
+          .number()
+          .optional()
+          .describe("Filter to txns with abs(amount) >= this."),
+        is_recurring: z.boolean().optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        sort_by: z
+          .enum(["date_desc", "amount_desc"])
+          .optional()
+          .describe("Default 'date_desc'. Use 'amount_desc' for biggest-first."),
+      }),
+      execute: async (input) => {
+        const limit = input.limit ?? 20;
+        let q = supabase
+          .from("transactions")
+          .select(
+            "id, txn_date, amount, direction, clean_counterparty, raw_counterparty, description, pocket_id, account_id, is_recurring, finance_pockets:pocket_id (name, group_name)"
+          )
+          .eq("user_id", userId)
+          .limit(limit);
+
+        if (input.start_date) q = q.gte("txn_date", input.start_date);
+        if (input.end_date) q = q.lte("txn_date", input.end_date);
+        if (input.direction) q = q.eq("direction", input.direction);
+        if (input.pocket_id) q = q.eq("pocket_id", input.pocket_id);
+        if (input.is_recurring !== undefined)
+          q = q.eq("is_recurring", input.is_recurring);
+
+        if (input.sort_by === "amount_desc") {
+          // Sorting by absolute value isn't directly possible in PostgREST, so
+          // we fetch a wider window and sort in-memory. Ceiling at 500 rows
+          // keeps memory bounded.
+          q = q.order("txn_date", { ascending: false }).limit(500);
+        } else {
+          q = q.order("txn_date", { ascending: false });
+        }
+
+        const { data, error } = await q;
+        if (error) return { ok: false, error: error.message };
+
+        let rows = data ?? [];
+        if (input.min_amount !== undefined) {
+          const min = input.min_amount;
+          rows = rows.filter((r) => Math.abs(Number(r.amount)) >= min);
+        }
+        if (input.sort_by === "amount_desc") {
+          rows = [...rows]
+            .sort(
+              (a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount))
+            )
+            .slice(0, limit);
+        }
+
+        return { ok: true, transactions: rows };
+      },
+    }),
   };
 }
