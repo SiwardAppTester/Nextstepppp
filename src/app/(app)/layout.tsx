@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { AppSidebar } from "@/components/app-sidebar";
+import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { syncStaleAccounts } from "@/lib/gmail/sync";
 import type { Category, GmailAccount, Shortcut } from "@/lib/types";
 
@@ -72,6 +73,7 @@ export default async function AppLayout({
         }}
       />
       <div className="relative flex flex-1 flex-col overflow-hidden">{children}</div>
+      <RealtimeRefresher />
     </div>
   );
 }
