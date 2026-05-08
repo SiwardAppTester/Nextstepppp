@@ -12,9 +12,11 @@ import { buildUserContextBlock } from "@/lib/ai-boost/dynamic-context";
 import { buildAiBoostTools } from "@/lib/ai-boost/tools";
 
 const MODEL = "claude-haiku-4-5-20251001";
-// Cap the tool-use loop. Spec §7 recommends ~5; lower would clip multi-tool
-// turns ("plan → list → create"), higher risks runaway loops.
-const MAX_STEPS = 5;
+// Cap the tool-use loop. Spec §7 recommends ~5; running out mid-sequence
+// produces "said done but didn't" — model writes a final reply with no
+// tool call. 8 gives headroom for list-then-create flows; tool surface is
+// bounded so runaway risk is low.
+const MAX_STEPS = 8;
 
 export const maxDuration = 60;
 
