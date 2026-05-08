@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/signout",
   "/api/cron",
+  "/api/telegram",
 ];
 
 export async function proxy(request: NextRequest) {
