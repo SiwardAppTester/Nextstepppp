@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -18,10 +18,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  ChevronRight,
+  HardDrive,
+  Layers,
+  Link2,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Category, GmailAccount } from "@/lib/types";
+import type { Category, GmailAccount, Shortcut } from "@/lib/types";
 import { ThemeToggle } from "./theme-toggle";
 
 const nav: { href: string; label: string; icon: LucideIcon; hint?: string }[] = [
@@ -53,15 +58,40 @@ function toggleSidebar() {
   }
 }
 
+// Sections default to open. We hydrate from localStorage after mount to avoid
+// hydration mismatches — accepts a one-frame flash for sections the user closed.
+function useSectionOpen(key: string) {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(`sidebar-section:${key}`) === "closed") {
+        setOpen(false);
+      }
+    } catch {}
+  }, [key]);
+  function toggle() {
+    setOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(`sidebar-section:${key}`, next ? "open" : "closed"); } catch {}
+      return next;
+    });
+  }
+  return [open, toggle] as const;
+}
+
 type Props = {
   categories: Category[];
   taskCountByCat: Record<string, number>;
   gmailAccounts: GmailAccount[];
+  shortcuts: Shortcut[];
   user: { email: string; initial: string };
 };
 
-export function AppSidebar({ categories, taskCountByCat, gmailAccounts, user }: Props) {
+export function AppSidebar({ categories, taskCountByCat, gmailAccounts, shortcuts, user }: Props) {
   const pathname = usePathname();
+  const [categoriesOpen, toggleCategories] = useSectionOpen("categories");
+  const [shortcutsOpen, toggleShortcuts] = useSectionOpen("shortcuts");
+  const [gmailOpen, toggleGmail] = useSectionOpen("gmail");
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -132,10 +162,8 @@ export function AppSidebar({ categories, taskCountByCat, gmailAccounts, user }: 
       </nav>
 
       <div className="px-3 mt-2">
-        <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-subtle)] sidebar-only-expanded">
-          Categories
-        </div>
-        <div className="flex flex-col gap-0.5">
+        <SectionHeader label="Categories" icon={Layers} open={categoriesOpen} onToggle={toggleCategories} />
+        <div className={cn("flex flex-col gap-0.5", !categoriesOpen && "sidebar-section-closed")}>
           {categories.length === 0 && (
             <div className="px-2.5 py-2 text-[11px] text-[var(--color-text-subtle)] sidebar-only-expanded">
               No categories yet.
@@ -180,42 +208,66 @@ export function AppSidebar({ categories, taskCountByCat, gmailAccounts, user }: 
 
       {gmailAccounts.length > 0 && (
         <div className="px-3 mt-2">
-          <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-subtle)] sidebar-only-expanded">
-            Gmail
-          </div>
-          <div className="flex flex-col gap-0.5">
+          <SectionHeader label="Gmail" icon={Mail} open={gmailOpen} onToggle={toggleGmail} />
+          <div className={cn("flex flex-col gap-0.5", !gmailOpen && "sidebar-section-closed")}>
             {gmailAccounts.map((acc) => {
               const hasUnread = acc.unread_count > 0;
               const domainInitial = (acc.email.split("@")[1]?.[0] ?? "?").toUpperCase();
+              const authUser = encodeURIComponent(acc.email);
               return (
-                <a
+                <div
                   key={acc.id}
-                  href={`https://mail.google.com/mail/?authuser=${encodeURIComponent(acc.email)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`${acc.email}${hasUnread ? ` — ${acc.unread_count} unread` : ""}`}
                   className={cn(
-                    "sidebar-nav-item group flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[12.5px] transition-colors",
-                    "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                    "sidebar-nav-item group flex items-center rounded-[8px] text-[12.5px] transition-colors",
+                    "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
                   )}
                 >
-                  <span className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-[var(--color-border)] bg-[var(--color-surface)] text-[9px] font-semibold text-[var(--color-text-muted)]">
-                    {domainInitial}
-                    {hasUnread && (
-                      <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)] shadow-[0_0_6px_var(--color-accent-glow)]" />
-                    )}
-                  </span>
-                  <span className="sidebar-only-expanded flex-1 text-left truncate">
-                    {acc.email.split("@")[1] ?? acc.email}
-                  </span>
-                  {hasUnread && (
-                    <span className="sidebar-only-expanded text-[10px] tabular-nums font-semibold text-[var(--color-accent)]">
-                      {acc.unread_count}
+                  <a
+                    href={`https://mail.google.com/mail/?authuser=${authUser}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Open Gmail — ${acc.email}${hasUnread ? ` (${acc.unread_count} unread)` : ""}`}
+                    className="flex flex-1 min-w-0 items-center gap-2.5 px-2.5 py-1.5 hover:text-[var(--color-text)]"
+                  >
+                    <span className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-[var(--color-border)] bg-[var(--color-surface)] text-[9px] font-semibold text-[var(--color-text-muted)]">
+                      {domainInitial}
+                      {hasUnread && (
+                        <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[var(--color-accent)] shadow-[0_0_6px_var(--color-accent-glow)]" />
+                      )}
                     </span>
-                  )}
-                </a>
+                    <span className="sidebar-only-expanded flex-1 text-left truncate">
+                      {acc.email.split("@")[1] ?? acc.email}
+                    </span>
+                    {hasUnread && (
+                      <span className="sidebar-only-expanded text-[10px] tabular-nums font-semibold text-[var(--color-accent)]">
+                        {acc.unread_count}
+                      </span>
+                    )}
+                  </a>
+                  <a
+                    href={`https://drive.google.com/drive/?authuser=${authUser}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Open Drive — ${acc.email}`}
+                    aria-label={`Open Drive for ${acc.email}`}
+                    className="sidebar-only-expanded mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--color-text-subtle)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors"
+                  >
+                    <HardDrive className="h-3 w-3" strokeWidth={2} />
+                  </a>
+                </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {shortcuts.length > 0 && (
+        <div className="px-3 mt-2">
+          <SectionHeader label="Shortcuts" icon={Link2} open={shortcutsOpen} onToggle={toggleShortcuts} />
+          <div className={cn("flex flex-col gap-0.5", !shortcutsOpen && "sidebar-section-closed")}>
+            {shortcuts.map((s) => (
+              <ShortcutItem key={s.id} shortcut={s} />
+            ))}
           </div>
         </div>
       )}
@@ -243,6 +295,100 @@ export function AppSidebar({ categories, taskCountByCat, gmailAccounts, user }: 
         </div>
       </div>
     </aside>
+  );
+}
+
+function SectionHeader({
+  label,
+  icon: Icon,
+  open,
+  onToggle,
+}: {
+  label: string;
+  icon: LucideIcon;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      {/* Expanded sidebar: chevron + label */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="sidebar-only-expanded group flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-subtle)] hover:text-[var(--color-text-muted)] transition-colors"
+      >
+        <ChevronRight
+          className={cn(
+            "h-3 w-3 shrink-0 transition-transform duration-150",
+            open && "rotate-90"
+          )}
+          strokeWidth={2.5}
+        />
+        <span className="flex-1 text-left">{label}</span>
+      </button>
+      {/* Collapsed sidebar: small icon + tiny chevron, centered */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        title={`${label} — ${open ? "collapse" : "expand"}`}
+        className="sidebar-only-collapsed mx-auto items-center justify-center gap-0.5 rounded-md px-1.5 py-1 text-[var(--color-text-subtle)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
+      >
+        <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+        <ChevronRight
+          className={cn(
+            "h-2.5 w-2.5 shrink-0 transition-transform duration-150",
+            open && "rotate-90"
+          )}
+          strokeWidth={2.5}
+        />
+      </button>
+    </>
+  );
+}
+
+function ShortcutItem({ shortcut }: { shortcut: Shortcut }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  let host = "";
+  try {
+    host = new URL(shortcut.url).hostname;
+  } catch {
+    host = shortcut.url;
+  }
+  const initial = (shortcut.label[0] ?? host[0] ?? "?").toUpperCase();
+  const faviconSrc = host
+    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`
+    : null;
+
+  return (
+    <a
+      href={shortcut.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`${shortcut.label} — ${host}`}
+      className={cn(
+        "sidebar-nav-item group flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[12.5px] transition-colors",
+        "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+      )}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden text-[9px] font-semibold text-[var(--color-text-muted)]">
+        {faviconSrc && !imgFailed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={faviconSrc}
+            alt=""
+            width={16}
+            height={16}
+            className="h-4 w-4 object-cover"
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          initial
+        )}
+      </span>
+      <span className="sidebar-only-expanded flex-1 text-left truncate">{shortcut.label}</span>
+    </a>
   );
 }
 

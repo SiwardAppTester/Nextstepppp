@@ -351,6 +351,11 @@ body {
 [data-sidebar="collapsed"] .sidebar-icon-collapse { display: none; }
 [data-sidebar="collapsed"] .sidebar-icon-expand   { display: inline-flex; }
 
+/* Folded sidebar section: items hidden in both expanded and collapsed modes.
+   The user folded the section to make it go away — collapsing the sidebar
+   shouldn't bring those items back as icons. */
+.sidebar-section-closed { display: none; }
+
 /* Mobile: force the sidebar collapsed below 768px regardless of preference.
    The user keeps a 56px icon-rail; the toggle button is hidden because there's
    no room for a wide sidebar on a phone anyway. Same rules as data-sidebar="collapsed". */

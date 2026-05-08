@@ -123,6 +123,87 @@ export async function deleteBankAccount(id: string) {
   return { ok: true };
 }
 
+function normalizeShortcutUrl(raw: string): { ok: true; url: string } | { ok: false; error: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, error: "URL can't be empty." };
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return { ok: false, error: "Only http:// and https:// URLs are allowed." };
+    }
+    return { ok: true, url: u.toString() };
+  } catch {
+    return { ok: false, error: "That doesn't look like a valid URL." };
+  }
+}
+
+export async function addShortcut(input: { label: string; url: string }) {
+  const { supabase, user } = await requireUser();
+  const label = input.label.trim();
+  if (!label) return { ok: false, error: "Give the shortcut a label." };
+
+  const norm = normalizeShortcutUrl(input.url);
+  if (!norm.ok) return { ok: false, error: norm.error };
+
+  // Append at the end. Ties on position are broken by created_at.
+  const { data: last } = await supabase
+    .from("shortcuts")
+    .select("position")
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPosition = (last?.position ?? -1) + 1;
+
+  const { error } = await supabase.from("shortcuts").insert({
+    user_id: user.id,
+    label,
+    url: norm.url,
+    position: nextPosition,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings");
+  revalidatePath("/(app)", "layout");
+  return { ok: true };
+}
+
+export async function updateShortcut(
+  id: string,
+  patch: { label?: string; url?: string }
+) {
+  const { supabase } = await requireUser();
+  const update: Record<string, unknown> = {};
+  if (patch.label !== undefined) {
+    const trimmed = patch.label.trim();
+    if (!trimmed) return { ok: false, error: "Label can't be empty." };
+    update.label = trimmed;
+  }
+  if (patch.url !== undefined) {
+    const norm = normalizeShortcutUrl(patch.url);
+    if (!norm.ok) return { ok: false, error: norm.error };
+    update.url = norm.url;
+  }
+  if (Object.keys(update).length === 0) return { ok: false, error: "Nothing to update." };
+
+  const { error } = await supabase.from("shortcuts").update(update).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings");
+  revalidatePath("/(app)", "layout");
+  return { ok: true };
+}
+
+export async function deleteShortcut(id: string) {
+  const { supabase } = await requireUser();
+  const { error } = await supabase.from("shortcuts").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings");
+  revalidatePath("/(app)", "layout");
+  return { ok: true };
+}
+
 export async function disconnectGmailAccount(id: string) {
   const { supabase } = await requireUser();
   // Best-effort revoke at Google before deleting our row.

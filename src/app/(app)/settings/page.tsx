@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { SettingsView, type Memory } from "./settings-view";
-import type { BankAccount, Category, GmailAccount } from "@/lib/types";
+import type { BankAccount, Category, GmailAccount, Shortcut } from "@/lib/types";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -12,6 +12,7 @@ export default async function SettingsPage() {
     { data: prefs },
     { data: bankAccounts },
     { data: gmailAccounts },
+    { data: shortcuts },
   ] = await Promise.all([
     supabase
       .from("categories")
@@ -31,6 +32,11 @@ export default async function SettingsPage() {
       .from("gmail_accounts")
       .select("id, email, unread_count, last_synced_at, last_sync_error, created_at")
       .order("created_at", { ascending: true }),
+    supabase
+      .from("shortcuts")
+      .select("id, label, url, position, created_at")
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
   ]);
 
   return (
@@ -41,6 +47,7 @@ export default async function SettingsPage() {
       autoConfirm={prefs?.auto_confirm ?? false}
       bankAccounts={(bankAccounts ?? []) as BankAccount[]}
       gmailAccounts={(gmailAccounts ?? []) as GmailAccount[]}
+      shortcuts={(shortcuts ?? []) as Shortcut[]}
     />
   );
 }

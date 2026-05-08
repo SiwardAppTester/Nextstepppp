@@ -9,6 +9,7 @@ import {
   User,
   Palette,
   Landmark,
+  Link2,
   User as UserIcon,
   Home as HomeIcon,
   Briefcase,
@@ -24,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import type { BankAccount, Category, GmailAccount } from "@/lib/types";
+import type { BankAccount, Category, GmailAccount, Shortcut } from "@/lib/types";
 import { formatIban } from "@/lib/finance/iban";
 import { GmailSection } from "./gmail-section";
 import {
@@ -36,6 +37,9 @@ import {
   addBankAccount,
   updateBankAccount,
   deleteBankAccount,
+  addShortcut,
+  updateShortcut,
+  deleteShortcut,
 } from "./actions";
 
 export type Memory = {
@@ -61,6 +65,7 @@ export function SettingsView({
   autoConfirm,
   bankAccounts,
   gmailAccounts,
+  shortcuts,
 }: {
   categories: Category[];
   memories: Memory[];
@@ -68,6 +73,7 @@ export function SettingsView({
   autoConfirm: boolean;
   bankAccounts: BankAccount[];
   gmailAccounts: GmailAccount[];
+  shortcuts: Shortcut[];
 }) {
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
@@ -137,6 +143,8 @@ export function SettingsView({
           </Card>
 
           <BankAccountsCard accounts={bankAccounts} />
+
+          <ShortcutsCard shortcuts={shortcuts} />
 
           <GmailSection accounts={gmailAccounts} />
 
@@ -705,6 +713,216 @@ function BankAccountRow({ account }: { account: BankAccount }) {
               rows={2}
               placeholder="What's this account for?"
             />
+          </div>
+          {error && <div className="text-[12px] text-[var(--color-danger)]">{error}</div>}
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="secondary" onClick={cancelEdit} disabled={pending}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" onClick={save} disabled={pending}>
+              {pending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShortcutsCard({ shortcuts }: { shortcuts: Shortcut[] }) {
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Link2 className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+              <CardTitle>Shortcuts</CardTitle>
+            </div>
+            <CardDescription className="mt-1">
+              Quick links to external sites that show up in the sidebar.
+            </CardDescription>
+          </div>
+          <Button size="sm" variant="secondary" onClick={() => setAdding((v) => !v)}>
+            {adding ? "Close" : "Add shortcut"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {adding && <AddShortcutForm onDone={() => setAdding(false)} />}
+
+        {shortcuts.length === 0 && !adding && (
+          <div className="rounded-[10px] border border-dashed border-[var(--color-border)] bg-[var(--color-surface-2)] p-6 text-center text-[12.5px] text-[var(--color-text-muted)]">
+            No shortcuts yet. Add a link to put it in the sidebar.
+          </div>
+        )}
+
+        {shortcuts.map((s) => (
+          <ShortcutRow key={s.id} shortcut={s} />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AddShortcutForm({ onDone }: { onDone: () => void }) {
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const r = await addShortcut({ label, url });
+      if (!r.ok) {
+        setError(r.error ?? "Couldn't add shortcut.");
+        return;
+      }
+      onDone();
+    });
+  }
+
+  return (
+    <div className="rounded-[10px] border border-[var(--color-border-accent)] bg-[var(--color-surface-2)] p-3 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+            Label
+          </div>
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="GitHub"
+            autoFocus
+          />
+        </div>
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+            URL
+          </div>
+          <Input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://github.com"
+          />
+        </div>
+      </div>
+      {error && <div className="text-[12px] text-[var(--color-danger)]">{error}</div>}
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="secondary" onClick={onDone} disabled={pending}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={submit}
+          disabled={pending || !label.trim() || !url.trim()}
+        >
+          {pending ? "Saving…" : "Add shortcut"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ShortcutRow({ shortcut }: { shortcut: Shortcut }) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(shortcut.label);
+  const [url, setUrl] = useState(shortcut.url);
+  const [imgFailed, setImgFailed] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  let host = "";
+  try {
+    host = new URL(shortcut.url).hostname;
+  } catch {
+    host = shortcut.url;
+  }
+  const initial = (shortcut.label[0] ?? host[0] ?? "?").toUpperCase();
+  const faviconSrc = host
+    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`
+    : null;
+
+  function save() {
+    setError(null);
+    startTransition(async () => {
+      const r = await updateShortcut(shortcut.id, { label, url });
+      if (!r.ok) {
+        setError(r.error ?? "Couldn't save changes.");
+        return;
+      }
+      setEditing(false);
+    });
+  }
+
+  function remove() {
+    if (!confirm(`Remove "${shortcut.label}" from the sidebar?`)) return;
+    startTransition(async () => {
+      const r = await deleteShortcut(shortcut.id);
+      if (!r.ok) setError(r.error ?? "Couldn't delete.");
+    });
+  }
+
+  function cancelEdit() {
+    setLabel(shortcut.label);
+    setUrl(shortcut.url);
+    setEditing(false);
+    setError(null);
+  }
+
+  return (
+    <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] hover:border-[var(--color-border-strong)] transition-colors">
+      <div className="flex items-start gap-3 px-3 py-2.5">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden text-[11px] font-semibold text-[var(--color-text-muted)]">
+          {faviconSrc && !imgFailed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={faviconSrc}
+              alt=""
+              width={28}
+              height={28}
+              className="h-7 w-7 object-cover"
+              onError={() => setImgFailed(true)}
+            />
+          ) : (
+            initial
+          )}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-medium truncate">{shortcut.label}</div>
+          <div className="text-[11.5px] text-[var(--color-text-muted)] truncate">{shortcut.url}</div>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)}>
+            <Pencil className="h-3 w-3" />
+            {editing ? "Cancel" : "Edit"}
+          </Button>
+          {!editing && (
+            <Button size="sm" variant="ghost" onClick={remove} disabled={pending}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+      {editing && (
+        <div className="border-t border-[var(--color-border)] p-3 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+                Label
+              </div>
+              <Input value={label} onChange={(e) => setLabel(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] mb-1.5">
+                URL
+              </div>
+              <Input value={url} onChange={(e) => setUrl(e.target.value)} />
+            </div>
           </div>
           {error && <div className="text-[12px] text-[var(--color-danger)]">{error}</div>}
           <div className="flex justify-end gap-2">

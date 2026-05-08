@@ -107,6 +107,14 @@ export type WishlistItem = {
   created_at: string;
 };
 
+export type Shortcut = {
+  id: string;
+  label: string;
+  url: string;
+  position: number;
+  created_at: string;
+};
+
 export type GmailAccount = {
   id: string;
   email: string;
