@@ -8,7 +8,7 @@ import { buildUserContextBlock } from "@/lib/ai-boost/dynamic-context";
 import { buildAiBoostTools } from "@/lib/ai-boost/tools";
 import { sendMessage, sendTyping } from "@/lib/telegram/client";
 
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = "claude-sonnet-4-6";
 const MAX_STEPS = 8;
 const HISTORY_LIMIT = 30;
 
