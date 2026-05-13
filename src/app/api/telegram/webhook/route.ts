@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@ai-sdk/anthropic";
-import { generateText, stepCountIs, type ModelMessage } from "ai";
+import {
+  generateText,
+  stepCountIs,
+  type ModelMessage,
+  type SystemModelMessage,
+} from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/server";
 import { AI_BOOST_SYSTEM_PROMPT } from "@/lib/ai-boost/system-prompt";
@@ -8,7 +13,10 @@ import { buildUserContextBlock } from "@/lib/ai-boost/dynamic-context";
 import { buildAiBoostTools } from "@/lib/ai-boost/tools";
 import { sendMessage, sendTyping } from "@/lib/telegram/client";
 
-const MODEL = "claude-sonnet-4-6";
+// Telegram runs Haiku 4.5 — one-shot replies don't benefit from streaming and
+// roughly 3× cheaper output keeps the bot's marginal cost negligible. Web
+// /api/chat stays on Sonnet for the harder routing/context-rewrite work.
+const MODEL = "claude-haiku-4-5";
 const MAX_STEPS = 8;
 const HISTORY_LIMIT = 30;
 
@@ -145,8 +153,19 @@ async function runCoach(
     content: { text: userText },
   });
 
-  const history = await loadHistory(admin, conversationId);
-  const contextBlock = await buildUserContextBlock(admin, userId);
+  // Run history + auto-confirm + context build in parallel — they're
+  // independent, so doing them serially adds ~300ms before the first model
+  // call for no gain.
+  const [history, prefsResult] = await Promise.all([
+    loadHistory(admin, conversationId),
+    admin
+      .from("user_settings")
+      .select("auto_confirm")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  const autoConfirm = prefsResult.data?.auto_confirm ?? false;
+  const contextBlock = await buildUserContextBlock(admin, userId, autoConfirm);
 
   // Wrap the latest user turn with dynamic context — same shape as /api/chat.
   // The DB row above stays unwrapped; only the model sees the wrapper.
@@ -156,20 +175,21 @@ async function runCoach(
     { role: "user", content: wrappedUser },
   ];
 
-  const { data: prefs } = await admin
-    .from("user_settings")
-    .select("auto_confirm")
-    .eq("user_id", userId)
-    .maybeSingle();
-  const autoConfirm = prefs?.auto_confirm ?? false;
-
-  const systemPrompt = autoConfirm
-    ? `${AI_BOOST_SYSTEM_PROMPT}\n\n# Auto-confirm mode\n\nThe user has turned ON auto-confirm. Skip "should I add this?" or "want me to create…?" check-ins for routine captures. When the user says "add X", "schedule Y", "I have a goal Z", just call the tool and confirm what you did in one short sentence. Still ask only when (a) routing is genuinely ambiguous (which category?), (b) the action is destructive (delete), or (c) the input is too vague to act on. Planning mode still proposes options before acting — auto-confirm doesn't make you guess what the user wants.`
-    : AI_BOOST_SYSTEM_PROMPT;
+  // System prompt is fully static — Telegram-surface guidance is appended
+  // once and never varies, so the combined content is cacheable by
+  // Anthropic (5-min TTL, ~10% of normal input cost on cache hits).
+  // Auto-confirm rides in <user_context>, not here.
+  const system: SystemModelMessage = {
+    role: "system",
+    content: `${AI_BOOST_SYSTEM_PROMPT}\n\n# Telegram surface\n\nYou are replying in a Telegram chat. Keep replies tight and conversational — no markdown formatting (asterisks, backticks, headings render as literal characters). Plain prose, short paragraphs. No long lists unless asked.`,
+    providerOptions: {
+      anthropic: { cacheControl: { type: "ephemeral" } },
+    },
+  };
 
   const result = await generateText({
     model: anthropic(MODEL),
-    system: `${systemPrompt}\n\n# Telegram surface\n\nYou are replying in a Telegram chat. Keep replies tight and conversational — no markdown formatting (asterisks, backticks, headings render as literal characters). Plain prose, short paragraphs. No long lists unless asked.`,
+    system,
     messages: modelMessages,
     tools: buildAiBoostTools(admin, userId),
     stopWhen: stepCountIs(MAX_STEPS),

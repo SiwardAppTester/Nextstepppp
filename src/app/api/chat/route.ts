@@ -5,6 +5,7 @@ import {
   stepCountIs,
   convertToModelMessages,
   type UIMessage,
+  type SystemModelMessage,
 } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { AI_BOOST_SYSTEM_PROMPT } from "@/lib/ai-boost/system-prompt";
@@ -41,34 +42,44 @@ export async function POST(req: NextRequest) {
     lastUserText
   );
 
-  // Persist the user's raw message (unwrapped) before streaming.
-  if (lastUser && lastUserText) {
-    await supabase.from("messages").insert({
-      conversation_id: conversationId,
-      role: "user",
-      content: { text: lastUserText },
-    });
-  }
-
-  // Build per-turn dynamic context and wrap the LATEST user message with it.
-  // Older user messages stay unwrapped — only the current turn needs fresh state.
-  const contextBlock = await buildUserContextBlock(supabase, user.id);
-  const wrappedMessages = wrapLatestUserMessage(messages, contextBlock);
-
-  // Read user preference for auto-confirm so the bot can skip "should I…" pings.
-  const { data: prefs } = await supabase
+  // Fire all three pre-stream side-effects in parallel:
+  //   1. persist the user's raw message
+  //   2. build the <user_context> block
+  //   3. read auto-confirm preference
+  // Previously these ran sequentially and added ~300ms before first token.
+  const userMsgInsert =
+    lastUser && lastUserText
+      ? supabase.from("messages").insert({
+          conversation_id: conversationId,
+          role: "user",
+          content: { text: lastUserText },
+        })
+      : Promise.resolve();
+  const prefsFetch = supabase
     .from("user_settings")
     .select("auto_confirm")
     .maybeSingle();
-  const autoConfirm = prefs?.auto_confirm ?? false;
 
-  const systemPrompt = autoConfirm
-    ? `${AI_BOOST_SYSTEM_PROMPT}\n\n# Auto-confirm mode\n\nThe user has turned ON auto-confirm. Skip "should I add this?" or "want me to create…?" check-ins for routine captures. When the user says "add X", "schedule Y", "I have a goal Z", just call the tool and confirm what you did in one short sentence. Still ask only when (a) routing is genuinely ambiguous (which category?), (b) the action is destructive (delete), or (c) the input is too vague to act on. Planning mode still proposes options before acting — auto-confirm doesn't make you guess what the user wants.`
-    : AI_BOOST_SYSTEM_PROMPT;
+  const [, prefsResult] = await Promise.all([userMsgInsert, prefsFetch]);
+  const autoConfirm = prefsResult.data?.auto_confirm ?? false;
+  const contextBlock = await buildUserContextBlock(supabase, user.id, autoConfirm);
+  const wrappedMessages = wrapLatestUserMessage(messages, contextBlock);
+
+  // System prompt is fully static — auto-confirm mode rides in <user_context>
+  // instead of being appended here. That lets Anthropic cache the system
+  // prompt + tool list every turn (5-min TTL) at ~10% of normal input cost.
+  // The cache breakpoint is set on the last tool in tools.ts.
+  const system: SystemModelMessage = {
+    role: "system",
+    content: AI_BOOST_SYSTEM_PROMPT,
+    providerOptions: {
+      anthropic: { cacheControl: { type: "ephemeral" } },
+    },
+  };
 
   const result = streamText({
     model: anthropic(MODEL),
-    system: systemPrompt,
+    system,
     messages: await convertToModelMessages(wrappedMessages),
     tools: buildAiBoostTools(supabase, user.id),
     stopWhen: stepCountIs(MAX_STEPS),

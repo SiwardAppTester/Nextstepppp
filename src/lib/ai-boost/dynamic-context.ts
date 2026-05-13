@@ -15,21 +15,22 @@ type Goal = {
 /**
  * Build the per-turn <user_context> block. Includes:
  * - Current datetime + user timezone (for resolving relative dates).
+ * - Auto-confirm mode (read from user_settings by the caller).
  * - Every category with its FULL context string.
- * - Active goals per category (with id and target_date so Claude can link
+ * - Active goals per category (with id and target_date so the Coach can link
  *   tasks/events to them via goal_id).
- * - Per-category open-task count and upcoming-event count (next 7 days).
  *
- * Tasks/events themselves are not enumerated by default — Claude calls
- * list_tasks / list_events when it needs detail.
+ * Open-task and upcoming-event counts are NOT included — the Coach calls
+ * list_tasks / list_events on demand when it needs state. Including counts
+ * cost 2N round-trips per turn for marginal value.
  */
 export async function buildUserContextBlock(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  autoConfirm: boolean
 ): Promise<string> {
   const now = new Date();
   const isoNow = now.toISOString();
-  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [{ data: categoriesData }, { data: goalsData }] = await Promise.all([
     supabase
@@ -56,35 +57,6 @@ export async function buildUserContextBlock(
     goalsByCategory.set(g.category_id, list);
   }
 
-  // Per-category counts. 2N round-trips — fine for one user with a small
-  // number of categories.
-  const [taskCounts, eventCounts] = await Promise.all([
-    Promise.all(
-      categories.map(async (c) => {
-        const { count } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("category_id", c.id)
-          .eq("status", "todo");
-        return [c.id, count ?? 0] as const;
-      })
-    ),
-    Promise.all(
-      categories.map(async (c) => {
-        const { count } = await supabase
-          .from("events")
-          .select("*", { count: "exact", head: true })
-          .eq("category_id", c.id)
-          .gte("start_at", isoNow)
-          .lte("start_at", sevenDaysFromNow);
-        return [c.id, count ?? 0] as const;
-      })
-    ),
-  ]);
-
-  const taskCountById = new Map(taskCounts);
-  const eventCountById = new Map(eventCounts);
-
   const localReadable = new Intl.DateTimeFormat("en-GB", {
     timeZone: USER_TIMEZONE,
     weekday: "short",
@@ -98,6 +70,7 @@ export async function buildUserContextBlock(
   const lines: string[] = [];
   lines.push(`Current datetime: ${isoNow} (${localReadable} ${USER_TIMEZONE})`);
   lines.push(`User timezone: ${USER_TIMEZONE}`);
+  lines.push(`Auto-confirm: ${autoConfirm ? "ON" : "OFF"}`);
   lines.push("");
   lines.push("Categories:");
 
@@ -108,8 +81,6 @@ export async function buildUserContextBlock(
     );
   } else {
     categories.forEach((c, idx) => {
-      const tasks = taskCountById.get(c.id) ?? 0;
-      const events = eventCountById.get(c.id) ?? 0;
       const cgoals = goalsByCategory.get(c.id) ?? [];
       lines.push("");
       lines.push(`[${idx + 1}] ${c.name} (id: ${c.id})`);
@@ -124,7 +95,6 @@ export async function buildUserContextBlock(
           lines.push(`  - ${g.title}${desc} (id: ${g.id}${target})`);
         }
       }
-      lines.push(`Open tasks: ${tasks} | Upcoming events (next 7 days): ${events}`);
     });
   }
 

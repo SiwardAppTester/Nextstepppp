@@ -262,6 +262,20 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
       },
     }),
 
+    delete_category: tool({
+      description:
+        "Permanently delete a category. Tasks, events, and goals linked to it are NOT cascaded — they're orphaned with category_id set to null. Destructive: only call after the user explicitly confirms (don't act on a single 'remove' if the category has any tasks/events/goals attached).",
+      inputSchema: z.object({ category_id: z.string() }),
+      execute: async ({ category_id }) => {
+        const { error } = await supabase
+          .from("categories")
+          .delete()
+          .eq("id", category_id);
+        if (error) return { ok: false, error: error.message };
+        return { ok: true, category_id };
+      },
+    }),
+
     list_tasks: tool({
       description:
         "Fetch existing tasks, optionally filtered by category, status, or goal. Tasks have no dates — for date-based queries (today, this week, upcoming) use list_events.",
@@ -474,6 +488,101 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
           },
           reply_to_user,
         };
+      },
+    }),
+
+    list_wishlist_items: tool({
+      description:
+        "List the user's wishlist items, newest first. Defaults to status='open' (still want to buy). Pass status='bought' for purchase history or 'discarded' for items the user dropped.",
+      inputSchema: z.object({
+        status: z
+          .enum(["open", "bought", "discarded"])
+          .optional()
+          .describe("Filter by status. Defaults to 'open'."),
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+      execute: async (input) => {
+        const { data, error } = await supabase
+          .from("wishlist_items")
+          .select(
+            "id, title, url, price, notes, status, bought_at, created_at"
+          )
+          .eq("status", input.status ?? "open")
+          .order("created_at", { ascending: false })
+          .limit(input.limit ?? 30);
+        if (error) return { ok: false, error: error.message };
+        return { ok: true, items: data ?? [] };
+      },
+    }),
+
+    update_wishlist_item: tool({
+      description:
+        "Update fields on an existing wishlist item: title, url, price, or notes. To change status (bought / discarded / re-open), use set_wishlist_status instead.",
+      inputSchema: z.object({
+        item_id: z.string(),
+        title: z.string().optional(),
+        url: z.string().nullable().optional(),
+        price: z.number().nullable().optional(),
+        notes: z.string().nullable().optional(),
+      }),
+      execute: async ({ item_id, ...rest }) => {
+        const patch: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(rest)) {
+          if (v !== undefined) patch[k] = v;
+        }
+        if (Object.keys(patch).length === 0) {
+          return { ok: false, error: "Nothing to update." };
+        }
+        const { data, error } = await supabase
+          .from("wishlist_items")
+          .update(patch)
+          .eq("id", item_id)
+          .select("id")
+          .single();
+        if (error) return { ok: false, error: error.message };
+        if (!data) return { ok: false, error: "Wishlist item not found." };
+        revalidatePath("/wishlist");
+        return { ok: true, id: data.id };
+      },
+    }),
+
+    set_wishlist_status: tool({
+      description:
+        "Change a wishlist item's status. 'bought' = user purchased it (stamps bought_at). 'discarded' = no longer wanted (keeps the row for history). 'open' = reactivate. Use when the user says 'I got the X', 'bought it', 'not interested anymore', etc.",
+      inputSchema: z.object({
+        item_id: z.string(),
+        status: z.enum(["open", "bought", "discarded"]),
+      }),
+      execute: async ({ item_id, status }) => {
+        const patch = {
+          status,
+          bought_at: status === "bought" ? new Date().toISOString() : null,
+        };
+        const { data, error } = await supabase
+          .from("wishlist_items")
+          .update(patch)
+          .eq("id", item_id)
+          .select("id")
+          .single();
+        if (error) return { ok: false, error: error.message };
+        if (!data) return { ok: false, error: "Wishlist item not found." };
+        revalidatePath("/wishlist");
+        return { ok: true, id: data.id, status };
+      },
+    }),
+
+    delete_wishlist_item: tool({
+      description:
+        "Permanently delete a wishlist item. Destructive: only call when the user explicitly says delete/remove. For 'I bought it' use set_wishlist_status (status='bought') instead — that preserves the row as history.",
+      inputSchema: z.object({ item_id: z.string() }),
+      execute: async ({ item_id }) => {
+        const { error } = await supabase
+          .from("wishlist_items")
+          .delete()
+          .eq("id", item_id);
+        if (error) return { ok: false, error: error.message };
+        revalidatePath("/wishlist");
+        return { ok: true, item_id };
       },
     }),
 
@@ -718,6 +827,37 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
         }
 
         return { ok: true, transactions: rows };
+      },
+    }),
+
+    update_settings: tool({
+      // Cache breakpoint lives on the LAST tool in this object. Anthropic
+      // caches system prompt + every preceding tool definition up to and
+      // including this marker, at ~10% of normal input cost within the
+      // 5-min TTL. Move this breakpoint if you reorder.
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+      description:
+        "Update user settings. Only currently exposed: auto_confirm. When ON, the Coach skips 'should I add this?' check-ins on routine captures. Use when the user says 'turn on auto-confirm', 'enable save-first mode', 'stop asking me before adding things', etc. Changes apply on the next turn (the current turn's <user_context> already reflects the old value).",
+      inputSchema: z.object({
+        auto_confirm: z.boolean().optional(),
+      }),
+      execute: async ({ auto_confirm }) => {
+        if (auto_confirm === undefined) {
+          return { ok: false, error: "Nothing to update." };
+        }
+        const { error } = await supabase.from("user_settings").upsert(
+          {
+            user_id: userId,
+            auto_confirm,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+        if (error) return { ok: false, error: error.message };
+        revalidatePath("/settings");
+        return { ok: true, auto_confirm };
       },
     }),
   };

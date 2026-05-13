@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, History } from "lucide-react";
@@ -19,6 +19,30 @@ type Conversation = {
   title: string | null;
   last_message_at: string;
 };
+
+// Names of tools in src/lib/ai-boost/tools.ts that change DB state.
+// Read-only tools (list_*, summarize_finances, fetch_product_info) are absent
+// from this set so they don't trigger a layout-wide router.refresh().
+// Keep in sync with tools.ts.
+const MUTATING_TOOL_NAMES = new Set<string>([
+  "update_category_context",
+  "create_task",
+  "update_task",
+  "delete_task",
+  "create_event",
+  "update_event",
+  "delete_event",
+  "create_category",
+  "update_category",
+  "delete_category",
+  "create_goal",
+  "update_goal",
+  "create_wishlist_item",
+  "update_wishlist_item",
+  "delete_wishlist_item",
+  "set_wishlist_status",
+  "update_settings",
+]);
 
 export function ChatView({
   conversations,
@@ -59,14 +83,38 @@ export function ChatView({
         return res;
       },
     }),
-    onFinish: () => {
-      // Refresh the server component so the rail picks up the new conversation
-      // (and any DB-side state the Coach mutated via tool calls).
-      router.refresh();
+    onFinish: ({ message }) => {
+      // Refresh server data only when the Coach actually mutated something.
+      // Pure chat replies + read-only tool calls (list_*, summarize_finances,
+      // fetch_product_info) don't change DB state, so refreshing the whole
+      // app layout for them was wasted re-fetching.
+      const ranMutatingTool = message.parts.some(
+        (p) =>
+          p.type.startsWith("tool-") &&
+          MUTATING_TOOL_NAMES.has(p.type.slice("tool-".length))
+      );
+      if (ranMutatingTool) router.refresh();
     },
   });
 
+  // On mount: jump to bottom *synchronously* before the first paint so the
+  // user never sees the top-then-scroll effect. page.tsx keys ChatView on
+  // conversation id, so this fires every time a different conversation opens.
+  useLayoutEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, []);
+
+  // After mount: smooth-scroll for new messages and streaming updates.
+  // didMountRef gates out the initial run so it doesn't fight the layout
+  // effect above with a redundant smooth scroll.
+  const didMountRef = useRef(false);
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
