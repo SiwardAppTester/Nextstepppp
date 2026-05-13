@@ -14,9 +14,10 @@ import {
   addMonths,
   subMonths,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Plus, X } from "lucide-react";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
+import { Popover } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { Category, CalendarEvent } from "@/lib/types";
 
@@ -28,6 +29,27 @@ export function CalendarView({
   categories: Category[];
 }) {
   const [cursor, setCursor] = useState(new Date());
+  // Day-detail popover state. `openDay` is the day a user clicked; `anchor`
+  // is the cell DOM node we're attaching the popover to. Both must be set
+  // together so the popover knows what to show *and* where to render.
+  const [openDay, setOpenDay] = useState<Date | null>(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+
+  function handleDayClick(day: Date, el: HTMLElement) {
+    // Click the same day again to close. Otherwise switch to the new day.
+    if (openDay && sameDay(openDay, day)) {
+      setOpenDay(null);
+      setAnchor(null);
+    } else {
+      setOpenDay(day);
+      setAnchor(el);
+    }
+  }
+
+  function closePopover() {
+    setOpenDay(null);
+    setAnchor(null);
+  }
 
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
@@ -103,11 +125,15 @@ export function CalendarView({
               const inMonth = isSameMonth(day, cursor);
               const today = isToday(day);
               const dayEvents = eventsOn(day);
+              const isOpen = !!openDay && sameDay(openDay, day);
               return (
-                <div
+                <button
                   key={idx}
+                  type="button"
+                  onClick={(e) => handleDayClick(day, e.currentTarget)}
                   className={cn(
-                    "relative border-b border-r border-[var(--color-border)] p-2 text-[12px] transition-colors hover:bg-[var(--color-surface-hover)]",
+                    "relative border-b border-r border-[var(--color-border)] p-2 text-[12px] text-left transition-colors hover:bg-[var(--color-surface-hover)] focus:outline-none focus:bg-[var(--color-surface-hover)]",
+                    isOpen && "bg-[var(--color-surface-hover)]",
                     !inMonth && "opacity-40",
                     (idx + 1) % 7 === 0 && "border-r-0",
                     idx >= days.length - 7 && "border-b-0"
@@ -161,12 +187,116 @@ export function CalendarView({
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
       </div>
+
+      <Popover anchor={anchor} open={!!openDay} onClose={closePopover}>
+        {openDay && (
+          <DayDetail
+            day={openDay}
+            events={eventsOn(openDay)}
+            categoryById={categoryById}
+            onClose={closePopover}
+          />
+        )}
+      </Popover>
+    </div>
+  );
+}
+
+function DayDetail({
+  day,
+  events,
+  categoryById,
+  onClose,
+}: {
+  day: Date;
+  events: CalendarEvent[];
+  categoryById: (id: string | null) => Category | undefined;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex flex-col max-h-[440px]">
+      <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] font-medium">
+            {format(day, "EEEE")}
+          </div>
+          <div className="text-[14px] font-semibold text-[var(--color-text)]">
+            {format(day, "MMMM d, yyyy")}
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {events.length === 0 ? (
+        <div className="px-4 py-6 text-center text-[12px] text-[var(--color-text-subtle)]">
+          Nothing planned this day.
+        </div>
+      ) : (
+        <div className="overflow-y-auto py-1.5">
+          {events.map((ev) => {
+            const cat = categoryById(ev.category_id);
+            const dotColor = cat?.color ?? "var(--color-text-subtle)";
+            const start = new Date(ev.start_at);
+            const end = ev.end_at ? new Date(ev.end_at) : null;
+            const timeLabel = ev.all_day
+              ? "All day"
+              : end
+              ? `${format(start, "HH:mm")} – ${format(end, "HH:mm")}`
+              : format(start, "HH:mm");
+            return (
+              <div
+                key={ev.id}
+                className="px-4 py-2.5 transition-colors hover:bg-[var(--color-surface-hover)]"
+              >
+                <div className="flex items-start gap-2">
+                  <span
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: dotColor }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="text-[13px] font-medium text-[var(--color-text)] truncate">
+                        {ev.title}
+                      </div>
+                      <div className="shrink-0 tabular-nums text-[11px] text-[var(--color-text-muted)]">
+                        {timeLabel}
+                      </div>
+                    </div>
+                    {cat && (
+                      <div className="mt-0.5 text-[10.5px] text-[var(--color-text-subtle)]">
+                        {cat.name}
+                      </div>
+                    )}
+                    {ev.location && (
+                      <div className="mt-1 flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{ev.location}</span>
+                      </div>
+                    )}
+                    {ev.description && (
+                      <div className="mt-1 text-[11.5px] leading-relaxed text-[var(--color-text-muted)] line-clamp-3">
+                        {ev.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
