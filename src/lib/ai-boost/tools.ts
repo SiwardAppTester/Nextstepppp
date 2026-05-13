@@ -32,6 +32,29 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
       },
     }),
 
+    update_user_profile: tool({
+      description:
+        "Update the user's cross-cutting profile — durable facts about who they are that don't fit a single category: preferences, work style, values, key people across their life, recurring habits, ambitions that span categories. Read the existing profile from <user_context>, integrate the new fact naturally while preserving everything important, and return the FULL updated profile string. Consolidate older info if the profile grows past ~1500 characters. Pair with the category-specific update_category_context — facts about ONE category go there, cross-cutting facts go here.",
+      inputSchema: z.object({
+        new_profile: z.string(),
+        change_summary: z
+          .string()
+          .describe("Short human-readable note about what changed."),
+      }),
+      execute: async ({ new_profile, change_summary }) => {
+        const { error } = await supabase.from("user_settings").upsert(
+          {
+            user_id: userId,
+            profile: new_profile,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+        if (error) return { ok: false, error: error.message };
+        return { ok: true, change_summary };
+      },
+    }),
+
     create_task: tool({
       description:
         "Create a new task in a category. Tasks are pure todo items with NO dates or times — anything time-anchored (deadlines, scheduled work, meetings) must be a create_event instead. When the task serves a specific goal, pass goal_id.",
@@ -677,7 +700,7 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
 
     summarize_finances: tool({
       description:
-        "Summarize income / expenses / net for a date range. Optionally group by pocket or pocket group (e.g. 'Bills & utilities'). Use for questions like 'how much did I spend in April', 'what did I spend on subscriptions last month', 'how much income did I have this year'. Dates are ISO YYYY-MM-DD.",
+        "Summarize income / expenses / net for a date range. Optionally narrow by bank account (account_id) and/or pocket (pocket_id), and break totals down by pocket or pocket group. Dates are ISO YYYY-MM-DD. For per-account questions ('how much did I spend from my ING personal account'), call list_bank_accounts first to resolve the name/nickname to an account_id.",
       inputSchema: z.object({
         start_date: z.string().describe("Inclusive start, ISO YYYY-MM-DD."),
         end_date: z.string().describe("Inclusive end, ISO YYYY-MM-DD."),
@@ -686,8 +709,20 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
           .optional()
           .describe("How to break down totals. Default 'none' = totals only."),
         pocket_id: z.string().optional().describe("Limit to a specific pocket."),
+        account_id: z
+          .string()
+          .optional()
+          .describe(
+            "Limit to a specific bank account. Resolve via list_bank_accounts first when the user names an account."
+          ),
       }),
-      execute: async ({ start_date, end_date, group_by = "none", pocket_id }) => {
+      execute: async ({
+        start_date,
+        end_date,
+        group_by = "none",
+        pocket_id,
+        account_id,
+      }) => {
         let q = supabase
           .from("transactions")
           .select(
@@ -697,6 +732,7 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
           .gte("txn_date", start_date)
           .lte("txn_date", end_date);
         if (pocket_id) q = q.eq("pocket_id", pocket_id);
+        if (account_id) q = q.eq("account_id", account_id);
         const { data, error } = await q;
         if (error) return { ok: false, error: error.message };
 
@@ -764,7 +800,7 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
 
     list_transactions: tool({
       description:
-        "List individual transactions in a date range, optionally filtered by direction, pocket, or amount. Use for 'show me my biggest expenses', 'what did I buy last week', 'list my recurring subscriptions'. Returns at most `limit` rows (default 20, max 100), sorted newest first.",
+        "List individual transactions in a date range, optionally filtered by bank account, direction, pocket, or amount. Use for 'show me my biggest expenses', 'what did I buy last week', 'list my recurring subscriptions', 'transactions from my ING account this month'. For account-scoped queries, call list_bank_accounts first to resolve the name to an account_id. Returns at most `limit` rows (default 20, max 100), sorted newest first.",
       inputSchema: z.object({
         start_date: z.string().optional().describe("Inclusive ISO YYYY-MM-DD."),
         end_date: z.string().optional().describe("Inclusive ISO YYYY-MM-DD."),
@@ -773,6 +809,12 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
           .optional()
           .describe("'in' = income, 'out' = expenses. Omit for both."),
         pocket_id: z.string().optional(),
+        account_id: z
+          .string()
+          .optional()
+          .describe(
+            "Limit to a specific bank account. Resolve via list_bank_accounts first when the user names an account."
+          ),
         min_amount: z
           .number()
           .optional()
@@ -798,6 +840,7 @@ export function buildAiBoostTools(supabase: SupabaseClient, userId: string) {
         if (input.end_date) q = q.lte("txn_date", input.end_date);
         if (input.direction) q = q.eq("direction", input.direction);
         if (input.pocket_id) q = q.eq("pocket_id", input.pocket_id);
+        if (input.account_id) q = q.eq("account_id", input.account_id);
         if (input.is_recurring !== undefined)
           q = q.eq("is_recurring", input.is_recurring);
 

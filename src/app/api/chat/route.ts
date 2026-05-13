@@ -57,12 +57,16 @@ export async function POST(req: NextRequest) {
       : Promise.resolve();
   const prefsFetch = supabase
     .from("user_settings")
-    .select("auto_confirm")
+    .select("auto_confirm, profile")
     .maybeSingle();
 
   const [, prefsResult] = await Promise.all([userMsgInsert, prefsFetch]);
   const autoConfirm = prefsResult.data?.auto_confirm ?? false;
-  const contextBlock = await buildUserContextBlock(supabase, user.id, autoConfirm);
+  const profile = prefsResult.data?.profile ?? null;
+  const contextBlock = await buildUserContextBlock(supabase, user.id, {
+    autoConfirm,
+    profile,
+  });
   const wrappedMessages = wrapLatestUserMessage(messages, contextBlock);
 
   // System prompt is fully static — auto-confirm mode rides in <user_context>

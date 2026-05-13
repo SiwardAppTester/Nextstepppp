@@ -160,12 +160,16 @@ async function runCoach(
     loadHistory(admin, conversationId),
     admin
       .from("user_settings")
-      .select("auto_confirm")
+      .select("auto_confirm, profile")
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
   const autoConfirm = prefsResult.data?.auto_confirm ?? false;
-  const contextBlock = await buildUserContextBlock(admin, userId, autoConfirm);
+  const profile = prefsResult.data?.profile ?? null;
+  const contextBlock = await buildUserContextBlock(admin, userId, {
+    autoConfirm,
+    profile,
+  });
 
   // Wrap the latest user turn with dynamic context — same shape as /api/chat.
   // The DB row above stays unwrapped; only the model sees the wrapper.

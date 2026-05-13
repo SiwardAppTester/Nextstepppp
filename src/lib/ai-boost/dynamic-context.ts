@@ -12,10 +12,16 @@ type Goal = {
   target_date: string | null;
 };
 
+export type UserPrefs = {
+  autoConfirm: boolean;
+  /** Cross-cutting profile blob from user_settings.profile (null if empty). */
+  profile: string | null;
+};
+
 /**
  * Build the per-turn <user_context> block. Includes:
  * - Current datetime + user timezone (for resolving relative dates).
- * - Auto-confirm mode (read from user_settings by the caller).
+ * - Auto-confirm mode + user profile (read from user_settings by the caller).
  * - Every category with its FULL context string.
  * - Active goals per category (with id and target_date so the Coach can link
  *   tasks/events to them via goal_id).
@@ -27,7 +33,7 @@ type Goal = {
 export async function buildUserContextBlock(
   supabase: SupabaseClient,
   userId: string,
-  autoConfirm: boolean
+  prefs: UserPrefs
 ): Promise<string> {
   const now = new Date();
   const isoNow = now.toISOString();
@@ -70,7 +76,14 @@ export async function buildUserContextBlock(
   const lines: string[] = [];
   lines.push(`Current datetime: ${isoNow} (${localReadable} ${USER_TIMEZONE})`);
   lines.push(`User timezone: ${USER_TIMEZONE}`);
-  lines.push(`Auto-confirm: ${autoConfirm ? "ON" : "OFF"}`);
+  lines.push(`Auto-confirm: ${prefs.autoConfirm ? "ON" : "OFF"}`);
+  lines.push("");
+  lines.push("User profile (cross-cutting facts — preferences, work style, values, key people, ambitions that span categories):");
+  lines.push(
+    prefs.profile?.trim()
+      ? prefs.profile
+      : "(empty — populate via update_user_profile as the user reveals durable facts about themselves)"
+  );
   lines.push("");
   lines.push("Categories:");
 
