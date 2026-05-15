@@ -27,6 +27,10 @@ export function ChatComposer({
     if (!trimmed || disabled) return;
     onSend(trimmed);
     setValue("");
+    // Keep focus on the textarea so you can keep typing without re-clicking.
+    // Matters when Send is clicked (focus would jump to the button); Enter
+    // already keeps focus, but this is harmless there.
+    textareaRef.current?.focus();
   }
 
   return (
@@ -54,7 +58,9 @@ export function ChatComposer({
             }}
             placeholder="Tell the Coach what's going on…"
             rows={1}
-            disabled={disabled}
+            // Intentionally not disabled while the Coach is thinking — disabling
+            // the textarea blurs it. We still gate `send()` on `disabled`, so
+            // you can't double-send, you just keep typing the next message.
             className="w-full resize-none bg-transparent px-4 pt-3.5 pb-12 text-[14px] leading-6 text-[var(--color-text)] placeholder:text-[var(--color-text-subtle)] outline-none focus:outline-none focus-visible:outline-none"
           />
 

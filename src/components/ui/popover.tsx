@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-type Position = { top: number; left: number };
+type Position = { top: number; left: number; maxHeight: number };
 
 /**
  * Anchored floating panel. Positions itself next to `anchor` using fixed
@@ -42,13 +42,22 @@ export function Popover({
       const c = cardRef.current.getBoundingClientRect();
       const margin = 8;
 
-      // Vertical: prefer below the anchor; flip above if it would clip.
-      let top = a.bottom + margin;
-      if (top + c.height > window.innerHeight - margin) {
-        const above = a.top - c.height - margin;
-        // Only flip if there's actually more room above; otherwise stay below
-        // and let the inner scroll handle overflow.
-        if (above >= margin) top = above;
+      // Pick the side with more room. Set maxHeight to the available space so
+      // the popover never overflows the viewport — inner content can scroll.
+      const spaceBelow = window.innerHeight - a.bottom - margin * 2;
+      const spaceAbove = a.top - margin * 2;
+      const placeBelow = spaceBelow >= c.height || spaceBelow >= spaceAbove;
+
+      let top: number;
+      let maxHeight: number;
+      if (placeBelow) {
+        top = a.bottom + margin;
+        maxHeight = spaceBelow;
+      } else {
+        // Above: try to bottom-align with the anchor; clamp to viewport top.
+        const desiredHeight = Math.min(c.height, spaceAbove);
+        top = Math.max(margin, a.top - margin - desiredHeight);
+        maxHeight = spaceAbove;
       }
 
       // Horizontal alignment relative to the anchor.
@@ -63,7 +72,7 @@ export function Popover({
       }
       if (left < margin) left = margin;
 
-      setPos({ top, left });
+      setPos({ top, left, maxHeight });
     }
     place();
     window.addEventListener("resize", place);
@@ -117,11 +126,12 @@ export function Popover({
         position: "fixed",
         top: pos?.top ?? 0,
         left: pos?.left ?? 0,
+        maxHeight: pos?.maxHeight,
         // Hidden until positioned so we never paint at (0,0) for one frame.
         visibility: pos ? "visible" : "hidden",
         zIndex: 60,
       }}
-      className="float-card min-w-[280px] max-w-[360px] overflow-hidden"
+      className="float-card flex flex-col min-w-[280px] max-w-[360px] overflow-hidden"
     >
       {children}
     </div>
