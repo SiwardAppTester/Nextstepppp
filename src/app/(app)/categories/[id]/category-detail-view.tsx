@@ -1,30 +1,12 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import {
-  Target,
-  MessageSquarePlus,
-  User,
-  Home as HomeIcon,
-  Briefcase,
-  Rocket,
-  Dumbbell,
-  type LucideIcon,
-} from "lucide-react";
+import { Target, MessageSquarePlus } from "lucide-react";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Category, Goal } from "@/lib/types";
 import { ContextBlock } from "./context-block";
-
-// Mirror the icon map from the sidebar. Categories with icons outside this set
-// fall back to User — same behavior as the sidebar, so it's consistent.
-const categoryIconMap: Record<string, LucideIcon> = {
-  User,
-  Home: HomeIcon,
-  Briefcase,
-  Rocket,
-  Dumbbell,
-};
+import { CategoryIconEditor } from "./category-icon-editor";
 
 export function CategoryDetailView({
   category,
@@ -33,7 +15,6 @@ export function CategoryDetailView({
   category: Category;
   goals: Goal[];
 }) {
-  const Icon = categoryIconMap[category.icon] ?? User;
   const active = goals.filter((g) => g.status === "active");
   const done = goals.filter((g) => g.status === "done");
   const archived = goals.filter((g) => g.status === "archived");
@@ -56,17 +37,11 @@ export function CategoryDetailView({
         <div className="mx-auto max-w-[760px] space-y-8">
           {/* Header */}
           <header className="flex items-center gap-4">
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded-[10px] border"
-              style={{
-                backgroundColor: `${category.color}18`,
-                borderColor: `${category.color}55`,
-                color: category.color,
-                boxShadow: `0 0 24px -8px ${category.color}55`,
-              }}
-            >
-              <Icon className="h-5 w-5" strokeWidth={2.4} />
-            </div>
+            <CategoryIconEditor
+              id={category.id}
+              icon={category.icon}
+              color={category.color}
+            />
             <div>
               <h1 className="text-xl font-semibold tracking-tight">
                 {category.name}

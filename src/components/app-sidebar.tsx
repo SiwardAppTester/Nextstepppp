@@ -10,11 +10,6 @@ import {
   Euro,
   Heart,
   Settings,
-  Briefcase,
-  Home as HomeIcon,
-  User,
-  Rocket,
-  Dumbbell,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -27,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Category, GmailAccount, Shortcut } from "@/lib/types";
+import { getCategoryIcon } from "@/lib/category-icons";
 import { ThemeToggle } from "./theme-toggle";
 
 const nav: { href: string; label: string; icon: LucideIcon; hint?: string }[] = [
@@ -37,14 +33,6 @@ const nav: { href: string; label: string; icon: LucideIcon; hint?: string }[] = 
   { href: "/wishlist", label: "Wishlist", icon: Heart },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
-
-const categoryIconMap: Record<string, LucideIcon> = {
-  User,
-  Home: HomeIcon,
-  Briefcase,
-  Rocket,
-  Dumbbell,
-};
 
 function toggleSidebar() {
   const html = document.documentElement;
@@ -170,7 +158,7 @@ export function AppSidebar({ categories, taskCountByCat, gmailAccounts, shortcut
             </div>
           )}
           {categories.map((cat) => {
-            const Icon = categoryIconMap[cat.icon] ?? User;
+            const Icon = getCategoryIcon(cat.icon);
             const count = taskCountByCat[cat.id] ?? 0;
             const active = pathname === `/categories/${cat.id}`;
             return (
