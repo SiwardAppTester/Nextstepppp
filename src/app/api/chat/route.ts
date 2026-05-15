@@ -12,7 +12,7 @@ import { AI_BOOST_SYSTEM_PROMPT } from "@/lib/ai-boost/system-prompt";
 import { buildUserContextBlock } from "@/lib/ai-boost/dynamic-context";
 import { buildAiBoostTools } from "@/lib/ai-boost/tools";
 
-const MODEL = "claude-sonnet-4-6";
+const MODEL = "claude-haiku-4-5";
 // Cap the tool-use loop. Spec §7 recommends ~5; running out mid-sequence
 // produces "said done but didn't" — model writes a final reply with no
 // tool call. 8 gives headroom for list-then-create flows; tool surface is
