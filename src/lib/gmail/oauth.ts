@@ -1,14 +1,27 @@
 // Direct Google OAuth 2.0. We don't use the `googleapis` SDK because we make
-// exactly two calls per account per ~minute; raw fetch keeps the bundle small.
+// a small handful of calls per account; raw fetch keeps the bundle small.
 //
-// Scope: gmail.metadata is the minimum needed to read users.labels.get and
-// pull the messagesUnread field on the INBOX label. No subjects, no bodies.
+// Scopes:
+//   - gmail.metadata    → INBOX unread count (no subjects, no bodies)
+//   - calendar.readonly → read events from the primary calendar
+//
+// Existing accounts connected before the calendar scope was added need to
+// re-consent: Google won't retroactively grant new scopes to an old refresh
+// token. We detect this from gmail_accounts.granted_scopes.
 
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 
-const SCOPES = ["https://www.googleapis.com/auth/gmail.metadata"].join(" ");
+export const SCOPE_GMAIL_METADATA = "https://www.googleapis.com/auth/gmail.metadata";
+export const SCOPE_CALENDAR_READONLY = "https://www.googleapis.com/auth/calendar.readonly";
+
+const SCOPES = [SCOPE_GMAIL_METADATA, SCOPE_CALENDAR_READONLY].join(" ");
+
+export function hasCalendarScope(grantedScopes: string | null | undefined): boolean {
+  if (!grantedScopes) return false;
+  return grantedScopes.split(/\s+/).includes(SCOPE_CALENDAR_READONLY);
+}
 
 function requireEnv(name: string): string {
   const v = process.env[name]?.trim();

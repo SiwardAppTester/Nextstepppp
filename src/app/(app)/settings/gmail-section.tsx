@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Mail, RefreshCw, Trash2, Plus, AlertCircle } from "lucide-react";
+import { Mail, RefreshCw, Trash2, Plus, AlertCircle, Calendar } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,8 +65,9 @@ export function GmailSection({ accounts }: { accounts: GmailAccount[] }) {
               <CardTitle>Gmail accounts</CardTitle>
             </div>
             <CardDescription className="mt-1">
-              Read-only. We only check the unread count of each inbox so you see new mail in the
-              sidebar. No subjects, no bodies, no sending.
+              Read-only. We check each inbox's unread count for the sidebar and, if you grant
+              calendar access, mirror your primary Google Calendar's events into your calendar.
+              No subjects, no bodies, no sending.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -151,6 +152,10 @@ function GmailAccountRow({ account }: { account: GmailAccount }) {
       })
     : "never";
 
+  const hasCalendar = !!account.granted_scopes?.includes(
+    "https://www.googleapis.com/auth/calendar.readonly"
+  );
+
   return (
     <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] hover:border-[var(--color-border-strong)] transition-colors">
       <div className="flex items-center gap-3 px-3 py-2.5">
@@ -163,6 +168,21 @@ function GmailAccountRow({ account }: { account: GmailAccount }) {
             <Badge tone={account.unread_count > 0 ? "accent" : "neutral"}>
               {account.unread_count} unread
             </Badge>
+            {hasCalendar ? (
+              <Badge tone="neutral">
+                <Calendar className="h-2.5 w-2.5 mr-0.5 inline" />
+                calendar
+              </Badge>
+            ) : (
+              <a
+                href="/api/gmail/connect/start"
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+                title="Reconnect to grant Google Calendar read access"
+              >
+                <Calendar className="h-2.5 w-2.5" />
+                connect calendar
+              </a>
+            )}
             {error && (
               <Badge tone="danger">
                 <AlertCircle className="h-2.5 w-2.5 mr-0.5 inline" />

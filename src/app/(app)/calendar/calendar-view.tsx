@@ -14,7 +14,7 @@ import {
   addMonths,
   subMonths,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, MapPin, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, MapPin, Plus, X } from "lucide-react";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
@@ -160,11 +160,19 @@ export function CalendarView({
                         isStartDay && !ev.all_day
                           ? format(new Date(ev.start_at), "HH:mm")
                           : null;
+                      const isExternal = ev.external_source === "google";
                       return (
                         <div
                           key={ev.id}
-                          className="flex items-center gap-1.5 truncate rounded-[5px] bg-[var(--color-surface-2)] px-1.5 py-1 text-[11px] transition-colors hover:bg-[var(--color-surface-hover)]"
-                          title={`${ev.title}${ev.location ? ` · ${ev.location}` : ""}`}
+                          className={cn(
+                            "flex items-center gap-1.5 truncate rounded-[5px] px-1.5 py-1 text-[11px] transition-colors hover:bg-[var(--color-surface-hover)]",
+                            isExternal
+                              ? "bg-transparent border border-dashed border-[var(--color-border)]"
+                              : "bg-[var(--color-surface-2)]"
+                          )}
+                          title={`${ev.title}${ev.location ? ` · ${ev.location}` : ""}${
+                            isExternal ? " · from Google Calendar" : ""
+                          }`}
                         >
                           <span
                             className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -175,7 +183,14 @@ export function CalendarView({
                               {time}
                             </span>
                           )}
-                          <span className="truncate font-medium text-[var(--color-text)]">
+                          <span
+                            className={cn(
+                              "truncate font-medium",
+                              isExternal
+                                ? "text-[var(--color-text-muted)]"
+                                : "text-[var(--color-text)]"
+                            )}
+                          >
                             {ev.title}
                           </span>
                         </div>
@@ -220,8 +235,8 @@ function DayDetail({
   onClose: () => void;
 }) {
   return (
-    <div className="flex flex-col max-h-[440px]">
-      <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3 shrink-0">
         <div>
           <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-text-subtle)] font-medium">
             {format(day, "EEEE")}
@@ -244,7 +259,7 @@ function DayDetail({
           Nothing planned this day.
         </div>
       ) : (
-        <div className="overflow-y-auto py-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto py-1.5">
           {events.map((ev) => {
             const cat = categoryById(ev.category_id);
             const dotColor = cat?.color ?? "var(--color-text-subtle)";
@@ -255,6 +270,7 @@ function DayDetail({
               : end
               ? `${format(start, "HH:mm")} – ${format(end, "HH:mm")}`
               : format(start, "HH:mm");
+            const isExternal = ev.external_source === "google";
             return (
               <div
                 key={ev.id}
@@ -274,11 +290,17 @@ function DayDetail({
                         {timeLabel}
                       </div>
                     </div>
-                    {cat && (
-                      <div className="mt-0.5 text-[10.5px] text-[var(--color-text-subtle)]">
-                        {cat.name}
-                      </div>
-                    )}
+                    <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-[var(--color-text-subtle)]">
+                      {cat && <span>{cat.name}</span>}
+                      {isExternal && (
+                        <>
+                          {cat && <span className="opacity-50">·</span>}
+                          <span className="inline-flex items-center gap-1">
+                            From Google Calendar
+                          </span>
+                        </>
+                      )}
+                    </div>
                     {ev.location && (
                       <div className="mt-1 flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
                         <MapPin className="h-3 w-3 shrink-0" />
@@ -289,6 +311,17 @@ function DayDetail({
                       <div className="mt-1 text-[11.5px] leading-relaxed text-[var(--color-text-muted)] line-clamp-3">
                         {ev.description}
                       </div>
+                    )}
+                    {isExternal && ev.external_html_link && (
+                      <a
+                        href={ev.external_html_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-[var(--color-accent)] hover:underline"
+                      >
+                        Open in Google
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
                     )}
                   </div>
                 </div>

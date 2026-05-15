@@ -59,6 +59,16 @@ type Task = {
   scheduled_for: string | null;
 };
 
+type UpcomingEvent = {
+  id: string;
+  title: string;
+  start_at: string;
+  end_at: string | null;
+  all_day: boolean;
+  location: string | null;
+  external_source: string | null;
+};
+
 export async function buildSystemPrompt(
   supabase: SupabaseClient,
   userId: string,
@@ -75,8 +85,11 @@ export async function buildSystemPrompt(
     minute: "2-digit",
   }).format(now);
 
-  // Top open tasks + categories in parallel
-  const [tasksRes, categoriesRes] = await Promise.all([
+  // Top open tasks + categories + next-7-days events in parallel.
+  // Events come from the same `events` table whether native or mirrored
+  // from Google Calendar — the Coach treats them uniformly.
+  const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const [tasksRes, categoriesRes, eventsRes] = await Promise.all([
     supabase
       .from("tasks")
       .select("id, title, category_id, status, due_date, scheduled_for")
@@ -88,10 +101,18 @@ export async function buildSystemPrompt(
       .select("id, name, color, icon, context")
       .eq("user_id", userId)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("events")
+      .select("id, title, start_at, end_at, all_day, location, external_source")
+      .gte("start_at", now.toISOString())
+      .lte("start_at", sevenDaysOut)
+      .order("start_at", { ascending: true })
+      .limit(10),
   ]);
 
   const tasks = (tasksRes.data ?? []) as Task[];
   const categories = (categoriesRes.data ?? []) as Category[];
+  const events = (eventsRes.data ?? []) as UpcomingEvent[];
   const categoryById = new Map(categories.map((c) => [c.id, c]));
 
   // Memory recall — semantic if Voyage is wired, keyword fallback otherwise.
@@ -120,6 +141,20 @@ export async function buildSystemPrompt(
     ? memories.map((m) => `  - ${m.content}`).join("\n")
     : "  (none yet)";
 
+  const eventLines = events.length
+    ? events
+        .map((e) => {
+          const start = new Date(e.start_at);
+          const when = e.all_day
+            ? format(start, "EEE MMM d") + " (all day)"
+            : format(start, "EEE MMM d HH:mm");
+          const loc = e.location ? `, at ${e.location}` : "";
+          const src = e.external_source === "google" ? " [google, read-only]" : "";
+          return `  - ${when}: ${e.title}${loc}${src} — id:${e.id}`;
+        })
+        .join("\n")
+    : "  (none in next 7 days)";
+
   return `${STATIC_PERSONA}
 
 ---
@@ -131,13 +166,16 @@ Time: ${tzNow} (${USER_TIMEZONE})
 Top open tasks (max 10, by due date):
 ${taskLines}
 
+Upcoming events (next 7 days):
+${eventLines}
+
 Categories you can use:
 ${categoryLines}
 
 Things you know about ${USER_NAME} (relevant memories):
 ${memoryLines}
 
-Use task ids and category ids verbatim from this list when calling tools. Don't make IDs up.`;
+Use task ids and category ids verbatim from this list when calling tools. Don't make IDs up. Events marked [google, read-only] cannot be edited — if asked to change one, tell the user to do it in Google Calendar.`;
 }
 
 async function retrieveMemories(

@@ -36,6 +36,11 @@ export type CalendarEvent = {
   all_day: boolean;
   recurring?: string | null;
   created_at: string;
+  // Set to "google" for events mirrored from a connected Google Calendar;
+  // null/undefined for native events created in this app. Imported events
+  // are read-only in the UI.
+  external_source?: string | null;
+  external_html_link?: string | null;
 };
 
 export type GoalStatus = "active" | "done" | "archived";
@@ -122,6 +127,9 @@ export type GmailAccount = {
   last_synced_at: string | null;
   last_sync_error: string | null;
   created_at: string;
+  // Space-separated scope string from Google's token response. Used to detect
+  // whether the user has granted calendar.readonly access to this account.
+  granted_scopes: string | null;
 };
 
 export type ChatRole = "user" | "assistant" | "tool";

@@ -30,7 +30,9 @@ export default async function SettingsPage() {
       .order("created_at", { ascending: true }),
     supabase
       .from("gmail_accounts")
-      .select("id, email, unread_count, last_synced_at, last_sync_error, created_at")
+      .select(
+        "id, email, unread_count, last_synced_at, last_sync_error, created_at, granted_scopes"
+      )
       .order("created_at", { ascending: true }),
     supabase
       .from("shortcuts")

@@ -339,6 +339,47 @@ export function buildCoachTools(supabase: SupabaseClient, userId: string) {
         return { ok: true, id };
       },
     }),
+
+    list_events: tool({
+      description:
+        "List calendar events in a time window. Returns BOTH native events created in this app AND events mirrored from connected Google calendars (marked with source='google'). Use this whenever the user asks 'what's on my calendar', 'am I free', 'when's X', or before suggesting a time to schedule something. External events are READ-ONLY — do not try to update or delete them; if you need to change them, tell the user to edit in Google.",
+      inputSchema: z.object({
+        from: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("ISO timestamp or natural ('today', 'tomorrow'). Defaults to now."),
+        to: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("ISO timestamp or natural ('in 7 days'). Defaults to 7 days from `from`."),
+        limit: z.number().int().min(1).max(50).optional().default(20),
+      }),
+      execute: async (input) => {
+        const fromIso = input.from ? coerceToISO(input.from) : new Date().toISOString();
+        const toIso = input.to
+          ? coerceToISO(input.to)
+          : new Date(new Date(fromIso).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from("events")
+          .select(
+            "id, title, description, location, start_at, end_at, all_day, category_id, external_source, external_html_link"
+          )
+          .gte("start_at", fromIso)
+          .lte("start_at", toIso)
+          .order("start_at", { ascending: true })
+          .limit(input.limit ?? 20);
+        if (error) return { ok: false, error: error.message };
+        return {
+          ok: true,
+          events: (data ?? []).map((e) => ({
+            ...e,
+            source: e.external_source ?? "native",
+          })),
+        };
+      },
+    }),
   };
 }
 

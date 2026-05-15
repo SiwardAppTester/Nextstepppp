@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { exchangeCode, fetchGoogleProfile } from "@/lib/gmail/oauth";
 import { encrypt } from "@/lib/gmail/crypto";
 import { syncAccount, type GmailAccountRow } from "@/lib/gmail/sync";
+import { syncCalendarForAccount } from "@/lib/google-calendar/sync";
+import { hasCalendarScope } from "@/lib/gmail/oauth";
 
 const STATE_COOKIE = "gmail_oauth_state";
 
@@ -53,6 +55,7 @@ export async function GET(request: NextRequest) {
           encrypted_refresh_token: encrypt(tokens.refresh_token),
           encrypted_access_token: encrypt(tokens.access_token),
           access_token_expires_at: expiresAt,
+          granted_scopes: tokens.scope,
           last_sync_error: null,
           updated_at: new Date().toISOString(),
         },
@@ -70,6 +73,21 @@ export async function GET(request: NextRequest) {
 
     // First sync now so the sidebar shows the count immediately.
     await syncAccount(supabase, row as GmailAccountRow);
+
+    // If the user granted calendar.readonly, pull their events too. We
+    // await so the calendar page is populated by the time they navigate
+    // there post-redirect.
+    if (hasCalendarScope(tokens.scope)) {
+      await syncCalendarForAccount(supabase, {
+        id: row.id,
+        user_id: user.id,
+        email: profile.email,
+        encrypted_refresh_token: encrypt(tokens.refresh_token),
+        encrypted_access_token: encrypt(tokens.access_token),
+        access_token_expires_at: expiresAt,
+        granted_scopes: tokens.scope,
+      });
+    }
 
     const ok = new URL("/settings", request.url);
     ok.searchParams.set("gmail", "connected");
