@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import {
+  getPushStatus,
+  subscribeToPush,
+  unsubscribeFromPush,
+  sendTestPush,
+  type PushStatus,
+} from "@/lib/push/client";
 import {
   Bell,
   Mail,
@@ -10,15 +17,11 @@ import {
   Palette,
   Landmark,
   Link2,
-  User as UserIcon,
-  Home as HomeIcon,
-  Briefcase,
-  Rocket,
-  Dumbbell,
   Pencil,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
+import { getCategoryIcon } from "@/lib/category-icons";
 import { Topbar } from "@/components/topbar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,13 +53,6 @@ export type Memory = {
   created_at: string;
 };
 
-const iconMap: Record<string, LucideIcon> = {
-  User: UserIcon,
-  Home: HomeIcon,
-  Briefcase,
-  Rocket,
-  Dumbbell,
-};
 
 export function SettingsView({
   categories,
@@ -174,7 +170,7 @@ export function SettingsView({
 }
 
 function CategoryRow({ cat }: { cat: Category }) {
-  const Icon = iconMap[cat.icon] ?? UserIcon;
+  const Icon = getCategoryIcon(cat.icon);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(cat.context ?? "");
   const [pending, startTransition] = useTransition();
@@ -253,6 +249,161 @@ function Field({ label, value, hint }: { label: string; value: string; hint?: st
       <Input value={value} readOnly />
       {hint && <div className="mt-1.5 text-[11px] text-[var(--color-text-subtle)]">{hint}</div>}
     </div>
+  );
+}
+
+/**
+ * Web Push enable / disable / test control for the current device.
+ *
+ * Reads the browser's push status on mount and re-renders the right action
+ * (enable, disable, "denied", "unsupported", etc.). Each action is async
+ * because subscribe/unsubscribe go through the service worker + a fetch.
+ */
+function WebPushRow() {
+  const [status, setStatus] = useState<PushStatus | "loading">("loading");
+  const [pending, setPending] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  useEffect(() => {
+    getPushStatus().then(setStatus);
+  }, []);
+
+  // While /settings is open, mirror every message the SW broadcasts to the
+  // page console. Lets us see SW push-handler events without having to
+  // hunt for the SW DevTools window. Removed on unmount.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+    function onMessage(e: MessageEvent) {
+      // eslint-disable-next-line no-console
+      console.log("[sw →]", e.data);
+    }
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () =>
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
+
+  async function refresh() {
+    setStatus(await getPushStatus());
+  }
+
+  async function onEnable() {
+    setFeedback(null);
+    setPending(true);
+    const r = await subscribeToPush();
+    setPending(false);
+    if (r.ok) {
+      setFeedback({ ok: true, msg: "Push enabled on this device." });
+      await refresh();
+    } else {
+      setFeedback({ ok: false, msg: r.error });
+    }
+  }
+
+  async function onDisable() {
+    setFeedback(null);
+    setPending(true);
+    await unsubscribeFromPush();
+    setPending(false);
+    setFeedback({ ok: true, msg: "Push disabled on this device." });
+    await refresh();
+  }
+
+  async function onTest() {
+    setFeedback(null);
+    setPending(true);
+    const r = await sendTestPush();
+    setPending(false);
+    setFeedback(
+      r.ok
+        ? { ok: true, msg: `Sent — delivered to ${r.sent} device${r.sent === 1 ? "" : "s"}.` }
+        : { ok: false, msg: r.error }
+    );
+  }
+
+  let badge: { tone: "accent" | "neutral" | "success" | "danger"; label: string } | null = null;
+  let primaryButton: { label: string; onClick: () => void; disabled?: boolean } | null = null;
+  let showTest = false;
+  let hint = "Browser notifications on this device.";
+
+  switch (status) {
+    case "loading":
+      hint = "Checking…";
+      break;
+    case "unsupported":
+      hint = "This browser doesn't support Web Push.";
+      badge = { tone: "neutral", label: "Unavailable" };
+      break;
+    case "not-configured":
+      hint =
+        "Set NEXT_PUBLIC_VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY + VAPID_SUBJECT in .env.local, then restart the dev server.";
+      badge = { tone: "danger", label: "Not configured" };
+      break;
+    case "denied":
+      hint = "Permission denied. Re-enable notifications for this site in browser settings.";
+      badge = { tone: "danger", label: "Blocked" };
+      break;
+    case "unsubscribed":
+      primaryButton = { label: "Enable", onClick: onEnable, disabled: pending };
+      break;
+    case "subscribed":
+      badge = { tone: "success", label: "Live" };
+      primaryButton = { label: "Disable", onClick: onDisable, disabled: pending };
+      showTest = true;
+      break;
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-3 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2.5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]">
+          <Bell className="h-3.5 w-3.5" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-medium">Web Push</span>
+            {badge && <Badge tone={badge.tone}>{badge.label}</Badge>}
+          </div>
+          <div className="text-[11.5px] text-[var(--color-text-muted)]">{hint}</div>
+        </div>
+        {primaryButton && (
+          <Button
+            size="sm"
+            variant={status === "subscribed" ? "ghost" : "primary"}
+            onClick={primaryButton.onClick}
+            disabled={primaryButton.disabled}
+          >
+            {pending ? "…" : primaryButton.label}
+          </Button>
+        )}
+      </div>
+      {showTest && (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={onTest} disabled={pending}>
+            {pending ? "Sending…" : "Send test push"}
+          </Button>
+          {feedback && (
+            <span
+              className={`text-[12px] ${
+                feedback.ok ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"
+              }`}
+            >
+              {feedback.msg}
+            </span>
+          )}
+        </div>
+      )}
+      {!showTest && feedback && (
+        <div className="px-1">
+          <span
+            className={`text-[12px] ${
+              feedback.ok ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"
+            }`}
+          >
+            {feedback.msg}
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -461,17 +612,12 @@ function NotificationsCard() {
           <CardTitle>Notifications</CardTitle>
         </div>
         <CardDescription>
-          Reminders fire automatically every 5 minutes for tasks with a scheduled time. Email goes
-          via Resend; Web Push lands in a follow-up.
+          Reminders fire automatically every 5 minutes. Email goes via Resend; Web Push runs through
+          the browser on this device.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <ToggleRow
-          icon={Bell}
-          title="Web Push"
-          hint="Browser notifications. Requires permission."
-          badge="Coming soon"
-        />
+        <WebPushRow />
         <div className="flex items-center gap-3 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]">
             <Mail className="h-3.5 w-3.5" />

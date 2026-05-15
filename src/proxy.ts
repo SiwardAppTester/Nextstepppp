@@ -8,6 +8,11 @@ const PUBLIC_PATHS = [
   "/api/auth/signout",
   "/api/cron",
   "/api/telegram",
+  // The service worker file must always serve as JS, even on unauth'd
+  // fetches. The browser does periodic SW update checks (sometimes without
+  // credentials) — if those get redirected to /login, the browser drops or
+  // corrupts the SW registration and push events stop firing silently.
+  "/sw.js",
 ];
 
 export async function proxy(request: NextRequest) {
