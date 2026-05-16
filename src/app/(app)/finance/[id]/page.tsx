@@ -1,5 +1,8 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Topbar } from "@/components/topbar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AccountView, type ScopedTxn } from "./account-view";
 import type {
   BankAccount,
@@ -14,6 +17,14 @@ export default async function AccountPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  return (
+    <Suspense fallback={<AccountSkeleton />}>
+      <AccountContent id={id} />
+    </Suspense>
+  );
+}
+
+async function AccountContent({ id }: { id: string }) {
   const supabase = await createClient();
 
   const [accountRes, statementsRes, txnsRes, pocketsRes, checksRes] =
@@ -85,5 +96,49 @@ export default async function AccountPage({
       pockets={(pocketsRes.data ?? []) as Pocket[]}
       rentalChecks={rentalChecks}
     />
+  );
+}
+
+function AccountSkeleton() {
+  return (
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <Topbar crumbs={[{ label: "Finance" }, { label: "Loading…" }]} />
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto max-w-[960px] space-y-5">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-12 w-12 rounded-[10px]" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-5 w-56" />
+              <Skeleton className="h-3 w-80" />
+            </div>
+            <Skeleton className="h-9 w-32" />
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2"
+              >
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            ))}
+          </div>
+          <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+            <Skeleton className="h-4 w-32 mb-4" />
+            <div className="space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 py-2 border-b border-[var(--color-border)] last:border-0">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-3.5 flex-1 max-w-[300px]" />
+                  <Skeleton className="h-3.5 w-20" />
+                  <Skeleton className="h-3.5 w-16" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

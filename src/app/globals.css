@@ -294,6 +294,27 @@ body {
 .dot-2 { animation: pulse-dot 1.2s infinite ease-in-out 0.15s; }
 .dot-3 { animation: pulse-dot 1.2s infinite ease-in-out 0.3s; }
 
+/* Skeleton loader — subtle moving sheen across surface-tinted blocks. Used
+   by <Skeleton> in components/ui/skeleton.tsx; theme-aware via CSS vars. */
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    var(--color-surface-hover) 50%,
+    var(--color-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+  border-radius: var(--radius-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
 /* Glow pulse for active states (e.g. empty-state brand mark) */
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 0 1px var(--color-border-accent), 0 0 20px -6px var(--color-accent-glow); }

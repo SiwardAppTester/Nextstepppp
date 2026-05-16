@@ -1,9 +1,20 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { Topbar } from "@/components/topbar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { FinanceView, type AccountSummary } from "./finance-view";
 import type { BankAccount } from "@/lib/types";
 import { normalizeIban } from "@/lib/finance/iban";
 
-export default async function FinancePage() {
+export default function FinancePage() {
+  return (
+    <Suspense fallback={<FinanceSkeleton />}>
+      <FinanceContent />
+    </Suspense>
+  );
+}
+
+async function FinanceContent() {
   const supabase = await createClient();
 
   const [
@@ -149,4 +160,44 @@ export default async function FinancePage() {
   });
 
   return <FinanceView summaries={summaries} />;
+}
+
+function FinanceSkeleton() {
+  return (
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      <Topbar crumbs={[{ label: "Finance" }]} />
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto max-w-[820px] space-y-5">
+          <div className="flex items-baseline justify-between">
+            <Skeleton className="h-6 w-28" />
+            <Skeleton className="h-3 w-64" />
+          </div>
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-[10px]" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-56" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-5" />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

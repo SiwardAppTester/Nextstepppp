@@ -1,5 +1,8 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Topbar } from "@/components/topbar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ChatView } from "./chat-view";
 import type { UIMessage } from "ai";
 
@@ -8,7 +11,6 @@ export default async function ChatPage({
 }: {
   searchParams: Promise<{ c?: string; new?: string }>;
 }) {
-  const supabase = await createClient();
   const params = await searchParams;
   const requestedId = params.c ?? null;
   // Any non-empty `new` value (timestamp from the New-chat button) forces a
@@ -16,10 +18,11 @@ export default async function ChatPage({
   const forceNew = !!params.new;
   const newKey = params.new ?? null;
 
-  // Default behavior when no conversation is specified: resume the most recent
-  // chat so navigating Chat → Tasks → Chat returns where you were. The "+ New
-  // chat" buttons pass ?new=1 to opt out and force a blank conversation.
+  // Resume the most recent chat when no conversation is specified. Kept at the
+  // page level (not inside Suspense) so the redirect resolves before we ever
+  // show a skeleton — avoids skeleton → redirect → skeleton flash.
   if (!requestedId && !forceNew) {
+    const supabase = await createClient();
     const { data: latest } = await supabase
       .from("conversations")
       .select("id")
@@ -29,7 +32,21 @@ export default async function ChatPage({
     if (latest?.id) redirect(`/chat?c=${latest.id}`);
   }
 
-  const conversationId = requestedId;
+  return (
+    <Suspense fallback={<ChatSkeleton />}>
+      <ChatContent conversationId={requestedId} newKey={newKey} />
+    </Suspense>
+  );
+}
+
+async function ChatContent({
+  conversationId,
+  newKey,
+}: {
+  conversationId: string | null;
+  newKey: string | null;
+}) {
+  const supabase = await createClient();
 
   // Pull the conversations rail in parallel with this conversation's messages.
   const [conversationsRes, messagesRes] = await Promise.all([
@@ -58,6 +75,34 @@ export default async function ChatPage({
       activeConversationId={conversationId}
       initialMessages={initialMessages}
     />
+  );
+}
+
+function ChatSkeleton() {
+  return (
+    <div className="flex h-full flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col min-w-0">
+        <Topbar crumbs={[{ label: "Coach" }, { label: "Loading…" }]} />
+        <div className="flex-1 overflow-hidden px-6 py-6 space-y-6">
+          {/* Alternating bubble shapes hint at a real conversation. */}
+          <div className="flex justify-end">
+            <Skeleton className="h-16 w-[280px] rounded-[14px]" />
+          </div>
+          <div className="flex justify-start">
+            <Skeleton className="h-24 w-[420px] rounded-[14px]" />
+          </div>
+          <div className="flex justify-end">
+            <Skeleton className="h-10 w-[200px] rounded-[14px]" />
+          </div>
+          <div className="flex justify-start">
+            <Skeleton className="h-32 w-[460px] rounded-[14px]" />
+          </div>
+        </div>
+        <div className="border-t border-[var(--color-border)] p-4">
+          <Skeleton className="h-12 w-full rounded-[12px]" />
+        </div>
+      </div>
+    </div>
   );
 }
 
